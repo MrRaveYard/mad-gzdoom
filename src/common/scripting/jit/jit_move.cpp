@@ -39,6 +39,19 @@ void JitCompiler::EmitMOVEV3()
 	cc.movsd(regF[A + 2], regF[B + 2]);
 }
 
+void JitCompiler::EmitMOVEFV2()
+{
+	cc.movss(regF[A], regF[B]);
+	cc.movss(regF[A + 1], regF[B + 1]);
+}
+
+void JitCompiler::EmitMOVEFV3()
+{
+	cc.movss(regF[A], regF[B]);
+	cc.movss(regF[A + 1], regF[B + 1]);
+	cc.movss(regF[A + 2], regF[B + 2]);
+}
+
 static void CastI2S(FString *a, int b) { a->Format("%d", b); }
 static void CastU2S(FString *a, int b) { a->Format("%u", b); }
 static void CastF2S(FString *a, double b) { a->Format("%.5f", b); }

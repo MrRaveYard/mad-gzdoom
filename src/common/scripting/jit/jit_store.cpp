@@ -161,6 +161,48 @@ void JitCompiler::EmitSV3_R()
 	cc.movsd(asmjit::x86::qword_ptr(tmp, 16), regF[B + 2]);
 }
 
+void JitCompiler::EmitSFV2()
+{
+	EmitNullPointerThrow(A, X_WRITE_NIL);
+	auto tmp = newTempIntPtr();
+	cc.mov(tmp, regA[A]);
+	cc.add(tmp, konstd[C]);
+	cc.movss(asmjit::x86::dword_ptr(tmp), regF[B]);
+	cc.movss(asmjit::x86::dword_ptr(tmp, 8), regF[B + 1]);
+}
+
+void JitCompiler::EmitSFV2_R()
+{
+	EmitNullPointerThrow(A, X_WRITE_NIL);
+	auto tmp = newTempIntPtr();
+	cc.mov(tmp, regA[A]);
+	cc.add(tmp, regD[C]);
+	cc.movss(asmjit::x86::dword_ptr(tmp), regF[B]);
+	cc.movss(asmjit::x86::dword_ptr(tmp, 8), regF[B + 1]);
+}
+
+void JitCompiler::EmitSFV3()
+{
+	EmitNullPointerThrow(A, X_WRITE_NIL);
+	auto tmp = newTempIntPtr();
+	cc.mov(tmp, regA[A]);
+	cc.add(tmp, konstd[C]);
+	cc.movss(asmjit::x86::dword_ptr(tmp), regF[B]);
+	cc.movss(asmjit::x86::dword_ptr(tmp, 8), regF[B + 1]);
+	cc.movss(asmjit::x86::dword_ptr(tmp, 16), regF[B + 2]);
+}
+
+void JitCompiler::EmitSFV3_R()
+{
+	EmitNullPointerThrow(A, X_WRITE_NIL);
+	auto tmp = newTempIntPtr();
+	cc.mov(tmp, regA[A]);
+	cc.add(tmp, regD[C]);
+	cc.movss(asmjit::x86::dword_ptr(tmp), regF[B]);
+	cc.movss(asmjit::x86::dword_ptr(tmp, 8), regF[B + 1]);
+	cc.movss(asmjit::x86::dword_ptr(tmp, 16), regF[B + 2]);
+}
+
 void JitCompiler::EmitSBIT()
 {
 	EmitNullPointerThrow(A, X_WRITE_NIL);
