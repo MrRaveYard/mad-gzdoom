@@ -167,8 +167,12 @@ void JitCompiler::EmitSFV2()
 	auto tmp = newTempIntPtr();
 	cc.mov(tmp, regA[A]);
 	cc.add(tmp, konstd[C]);
-	cc.movss(asmjit::x86::dword_ptr(tmp), regF[B]);
-	cc.movss(asmjit::x86::dword_ptr(tmp, 8), regF[B + 1]);
+
+	auto tmpF = newTempXmmSs();
+	cc.cvtsd2ss(tmpF, regF[B]);
+	cc.movss(asmjit::x86::qword_ptr(tmp), tmpF);
+	cc.cvtsd2ss(tmpF, regF[B + 1]);
+	cc.movss(asmjit::x86::qword_ptr(tmp, 4), tmpF);
 }
 
 void JitCompiler::EmitSFV2_R()
@@ -177,8 +181,12 @@ void JitCompiler::EmitSFV2_R()
 	auto tmp = newTempIntPtr();
 	cc.mov(tmp, regA[A]);
 	cc.add(tmp, regD[C]);
-	cc.movss(asmjit::x86::dword_ptr(tmp), regF[B]);
-	cc.movss(asmjit::x86::dword_ptr(tmp, 8), regF[B + 1]);
+
+	auto tmpF = newTempXmmSs();
+	cc.cvtsd2ss(tmpF, regF[B]);
+	cc.movss(asmjit::x86::qword_ptr(tmp), tmpF);
+	cc.cvtsd2ss(tmpF, regF[B + 1]);
+	cc.movss(asmjit::x86::qword_ptr(tmp, 4), tmpF);
 }
 
 void JitCompiler::EmitSFV3()
@@ -187,9 +195,13 @@ void JitCompiler::EmitSFV3()
 	auto tmp = newTempIntPtr();
 	cc.mov(tmp, regA[A]);
 	cc.add(tmp, konstd[C]);
-	cc.movss(asmjit::x86::dword_ptr(tmp), regF[B]);
-	cc.movss(asmjit::x86::dword_ptr(tmp, 8), regF[B + 1]);
-	cc.movss(asmjit::x86::dword_ptr(tmp, 16), regF[B + 2]);
+	auto tmpF = newTempXmmSs();
+	cc.cvtsd2ss(tmpF, regF[B]);
+	cc.movss(asmjit::x86::qword_ptr(tmp), tmpF);
+	cc.cvtsd2ss(tmpF, regF[B + 1]);
+	cc.movss(asmjit::x86::qword_ptr(tmp, 4), tmpF);
+	cc.cvtsd2ss(tmpF, regF[B + 2]);
+	cc.movss(asmjit::x86::qword_ptr(tmp, 4), tmpF);
 }
 
 void JitCompiler::EmitSFV3_R()
@@ -198,9 +210,13 @@ void JitCompiler::EmitSFV3_R()
 	auto tmp = newTempIntPtr();
 	cc.mov(tmp, regA[A]);
 	cc.add(tmp, regD[C]);
-	cc.movss(asmjit::x86::dword_ptr(tmp), regF[B]);
-	cc.movss(asmjit::x86::dword_ptr(tmp, 8), regF[B + 1]);
-	cc.movss(asmjit::x86::dword_ptr(tmp, 16), regF[B + 2]);
+	auto tmpF = newTempXmmSs();
+	cc.cvtsd2ss(tmpF, regF[B]);
+	cc.movss(asmjit::x86::qword_ptr(tmp), tmpF);
+	cc.cvtsd2ss(tmpF, regF[B + 1]);
+	cc.movss(asmjit::x86::qword_ptr(tmp, 4), tmpF);
+	cc.cvtsd2ss(tmpF, regF[B + 2]);
+	cc.movss(asmjit::x86::qword_ptr(tmp, 4), tmpF);
 }
 
 void JitCompiler::EmitSBIT()

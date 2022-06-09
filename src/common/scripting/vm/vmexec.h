@@ -263,8 +263,8 @@ static int ExecScriptFunc(VMFrameStack *stack, VMReturn *ret, int numret)
 		GETADDR(PB,RC,X_READ_NIL);
 		reg.a[a] = *(void **)ptr;
 		NEXTOP;
-		OP(LV2) :
-			ASSERTF(a + 1); ASSERTA(B); ASSERTKD(C);
+	OP(LV2) :
+		ASSERTF(a + 1); ASSERTA(B); ASSERTKD(C);
 		GETADDR(PB, KC, X_READ_NIL);
 		{
 			auto v = (double*)ptr;
@@ -272,8 +272,8 @@ static int ExecScriptFunc(VMFrameStack *stack, VMReturn *ret, int numret)
 			reg.f[a + 1] = v[1];
 		}
 		NEXTOP;
-		OP(LV2_R) :
-			ASSERTF(a + 1); ASSERTA(B); ASSERTD(C);
+	OP(LV2_R) :
+		ASSERTF(a + 1); ASSERTA(B); ASSERTD(C);
 		GETADDR(PB, RC, X_READ_NIL);
 		{
 			auto v = (double*)ptr;
@@ -281,8 +281,8 @@ static int ExecScriptFunc(VMFrameStack *stack, VMReturn *ret, int numret)
 			reg.f[a + 1] = v[1];
 		}
 		NEXTOP;
-		OP(LV3) :
-			ASSERTF(a + 2); ASSERTA(B); ASSERTKD(C);
+	OP(LV3) :
+		ASSERTF(a + 2); ASSERTA(B); ASSERTKD(C);
 		GETADDR(PB, KC, X_READ_NIL);
 		{
 			auto v = (double*)ptr;
@@ -291,8 +291,8 @@ static int ExecScriptFunc(VMFrameStack *stack, VMReturn *ret, int numret)
 			reg.f[a + 2] = v[2];
 		}
 		NEXTOP;
-		OP(LV3_R) :
-			ASSERTF(a + 2); ASSERTA(B); ASSERTD(C);
+	OP(LV3_R) :
+		ASSERTF(a + 2); ASSERTA(B); ASSERTD(C);
 		GETADDR(PB, RC, X_READ_NIL);
 		{
 			auto v = (double*)ptr;
@@ -463,6 +463,44 @@ static int ExecScriptFunc(VMFrameStack *stack, VMReturn *ret, int numret)
 		GETADDR(PA,RC,X_WRITE_NIL);
 		{
 			auto v = (double *)ptr;
+			v[0] = reg.f[B];
+			v[1] = reg.f[B+1];
+			v[2] = reg.f[B+2];
+		}
+		NEXTOP;
+	OP(SFV2):
+		ASSERTA(a); ASSERTF(B+1); ASSERTKD(C);
+		GETADDR(PA,KC,X_WRITE_NIL);
+		{
+			auto v = (float *)ptr;
+			v[0] = reg.f[B];
+			v[1] = reg.f[B+1];
+		}
+		NEXTOP;
+	OP(SFV2_R):
+		ASSERTA(a); ASSERTF(B+1); ASSERTD(C);
+		GETADDR(PA,RC,X_WRITE_NIL);
+		{
+			auto v = (float *)ptr;
+			v[0] = reg.f[B];
+			v[1] = reg.f[B+1];
+		}
+		NEXTOP;
+	OP(SFV3):
+		ASSERTA(a); ASSERTF(B+2); ASSERTKD(C);
+		GETADDR(PA,KC,X_WRITE_NIL);
+		{
+			auto v = (float *)ptr;
+			v[0] = reg.f[B];
+			v[1] = reg.f[B+1];
+			v[2] = reg.f[B+2];
+		}
+		NEXTOP;
+	OP(SFV3_R):
+		ASSERTA(a); ASSERTF(B+2); ASSERTD(C);
+		GETADDR(PA,RC,X_WRITE_NIL);
+		{
+			auto v = (float *)ptr;
 			v[0] = reg.f[B];
 			v[1] = reg.f[B+1];
 			v[2] = reg.f[B+2];

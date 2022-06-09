@@ -1508,7 +1508,6 @@ FxExpression *FxFontCast::Resolve(FCompileContext &ctx)
 	}
 }
 
-
 //==========================================================================
 //
 // generic type cast operator
@@ -1684,6 +1683,13 @@ FxExpression *FxTypeCast::Resolve(FCompileContext &ctx)
 	{
 		FxExpression *x = new FxFontCast(basex);
 		x = x->Resolve(ctx);
+		basex = nullptr;
+		delete this;
+		return x;
+	}
+	else if ((basex->IsVector2() && IsVector2()) || (basex->IsVector3() && IsVector3()))
+	{
+		auto x = basex;
 		basex = nullptr;
 		delete this;
 		return x;
@@ -2768,6 +2774,18 @@ FxExpression *FxAddSub::Resolve(FCompileContext& ctx)
 		{
 			ValueType = left->ValueType;
 		}
+		else if (left->ValueType == TypeFVector3 && right->ValueType == TypeFVector2) // TODO RAVE What the fuck is this?
+		{
+			ValueType = left->ValueType;
+		}
+		else if (left->ValueType == TypeFVector2 && right->ValueType == TypeVector2)
+		{
+			ValueType = left->ValueType;
+		}
+		else if (left->ValueType == TypeVector2 && right->ValueType == TypeFVector2)
+		{
+			ValueType = left->ValueType;
+		}
 		else
 		{
 			goto error;
@@ -2857,8 +2875,9 @@ ExpEmit FxAddSub::Emit(VMFunctionBuilder *build)
 		if (IsVector())
 		{
 			assert(op1.RegType == REGT_FLOAT && op2.RegType == REGT_FLOAT);
-			build->Emit(right->ValueType == TypeVector2? OP_ADDV2_RR : OP_ADDV3_RR, to.RegNum, op1.RegNum, op2.RegNum);
-			if (left->ValueType == TypeVector3 && right->ValueType == TypeVector2 && to.RegNum != op1.RegNum)
+
+			build->Emit(right->IsVector2() ? OP_ADDV2_RR : OP_ADDV3_RR, to.RegNum, op1.RegNum, op2.RegNum);
+			if (left->IsVector3() && right->IsVector2() && to.RegNum != op1.RegNum)
 			{
 				// must move the z-coordinate
 				build->Emit(OP_MOVEF, to.RegNum + 2, op1.RegNum + 2);
@@ -2890,7 +2909,7 @@ ExpEmit FxAddSub::Emit(VMFunctionBuilder *build)
 		if (IsVector())
 		{
 			assert(op1.RegType == REGT_FLOAT && op2.RegType == REGT_FLOAT);
-			build->Emit(right->ValueType == TypeVector2 ? OP_SUBV2_RR : OP_SUBV3_RR, to.RegNum, op1.RegNum, op2.RegNum);
+			build->Emit(right->IsVector2() ? OP_SUBV2_RR : OP_SUBV3_RR, to.RegNum, op1.RegNum, op2.RegNum);
 			return to;
 		}
 		else if (ValueType->GetRegType() == REGT_FLOAT)
@@ -3093,11 +3112,11 @@ ExpEmit FxMulDiv::Emit(VMFunctionBuilder *build)
 		int op;
 		if (op2.Konst)
 		{
-			op = Operator == '*' ? (ValueType == TypeVector2 ? OP_MULVF2_RK : OP_MULVF3_RK) : (ValueType == TypeVector2 ? OP_DIVVF2_RK : OP_DIVVF3_RK);
+			op = Operator == '*' ? (IsVector2() ? OP_MULVF2_RK : OP_MULVF3_RK) : (IsVector2() ? OP_DIVVF2_RK : OP_DIVVF3_RK);
 		}
 		else
 		{
-			op = Operator == '*' ? (ValueType == TypeVector2 ? OP_MULVF2_RR : OP_MULVF3_RR) : (ValueType == TypeVector2 ? OP_DIVVF2_RR : OP_DIVVF3_RR);
+			op = Operator == '*' ? (IsVector2() ? OP_MULVF2_RR : OP_MULVF3_RR) : (IsVector2() ? OP_DIVVF2_RR : OP_DIVVF3_RR);
 		}
 		op1.Free(build);
 		op2.Free(build);
