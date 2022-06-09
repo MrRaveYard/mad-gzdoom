@@ -355,7 +355,7 @@ void PType::StaticInit()
 	TypeTable.AddType(TypeFVector2, NAME_Struct);
 	TypeFVector2->loadOp = OP_LFV2;
 	TypeFVector2->storeOp = OP_SFV2;
-	TypeFVector2->moveOp = OP_MOVEFV2;
+	TypeFVector2->moveOp = OP_MOVEV2;
 	TypeFVector2->RegType = REGT_FLOAT;
 	TypeFVector2->RegCount = 2;
 
@@ -368,7 +368,7 @@ void PType::StaticInit()
 	TypeTable.AddType(TypeFVector3, NAME_Struct);
 	TypeFVector3->loadOp = OP_LFV3;
 	TypeFVector3->storeOp = OP_SFV3;
-	TypeFVector3->moveOp = OP_MOVEFV3;
+	TypeFVector3->moveOp = OP_MOVEV3;
 	TypeFVector3->RegType = REGT_FLOAT;
 	TypeFVector3->RegCount = 3;
 
@@ -2347,6 +2347,33 @@ PStruct *NewStruct(FName name, PTypeBase *outer, bool native)
 PPrototype::PPrototype(const TArray<PType *> &rettypes, const TArray<PType *> &argtypes)
 : ArgumentTypes(argtypes), ReturnTypes(rettypes)
 {
+	for (int i = 0; i < ArgumentTypes.Size(); ++i)
+	{
+		auto& type = ArgumentTypes[i];
+
+		if (type == TypeFVector2)
+		{
+			type = TypeVector2;
+		}
+		else if (type == TypeFVector3)
+		{
+			type = TypeVector3;
+		}
+	}
+
+	for (int i = 0; i < ReturnTypes.Size(); ++i)
+	{
+		auto& type = ReturnTypes[i];
+
+		if (type == TypeFVector2)
+		{
+			type = TypeVector2;
+		}
+		else if (type == TypeFVector3)
+		{
+			type = TypeVector3;
+		}
+	}
 }
 
 //==========================================================================

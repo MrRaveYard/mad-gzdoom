@@ -58,7 +58,6 @@ xx(LFV2_R,	lfv2,	RVRPRI,		NOP,	0, 0)
 xx(LFV3,	lfv3,	RVRPKI,		LFV3_R,	4, REGT_INT)	// load fvector3
 xx(LFV3_R,	lfv3,	RVRPRI,		NOP,	0, 0)
 
-
 xx(LBIT,	lbit,	RIRPI8,		NOP,	0, 0)	// rA = !!(*rB & C)  -- *rB is a byte
 
 // Store instructions. *(rA + rkC) = rB
@@ -96,8 +95,6 @@ xx(MOVES,	mov,	RSRS,		NOP,	0, 0)		// sA = sB
 xx(MOVEA,	mov,	RPRP,		NOP,	0, 0)		// aA = aB
 xx(MOVEV2,	mov2,	RFRF,		NOP,	0, 0)		// fA = fB (2 elements)
 xx(MOVEV3,	mov3,	RFRF,		NOP,	0, 0)		// fA = fB (3 elements)
-xx(MOVEFV2,	movf2,	RFRF,		NOP,	0, 0)		// fA = fB (2 elements)
-xx(MOVEFV3,	movf3,	RFRF,		NOP,	0, 0)		// fA = fB (3 elements)
 xx(CAST,	cast,	CAST,		NOP,	0, 0)		// xA = xB, conversion specified by C
 xx(CASTB,	castb,	CAST,		NOP,	0, 0)		// xA = !!xB, type specified by C
 xx(DYNCAST_R,	dyncast, RPRPRP,	NOP,	0, 0)		// aA = dyn_cast<aC>(aB);

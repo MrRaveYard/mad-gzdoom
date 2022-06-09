@@ -2770,7 +2770,7 @@ FxExpression *FxAddSub::Resolve(FCompileContext& ctx)
 	else if (left->IsVector() && right->IsVector())
 	{
 		// a vector2 can be added to or subtracted from a vector 3 but it needs to be the right operand.
-		if (left->ValueType == right->ValueType || (left->ValueType == TypeVector3 && right->ValueType == TypeVector2))
+		if (left->ValueType == right->ValueType || (left->IsVector3() && right->IsVector2()))
 		{
 			ValueType = left->ValueType;
 		}
@@ -9086,13 +9086,13 @@ ExpEmit FxVectorBuiltin::Emit(VMFunctionBuilder *build)
 	ExpEmit op = Self->Emit(build);
 	if (Function == NAME_Length)
 	{
-		build->Emit(Self->ValueType == TypeVector2 ? OP_LENV2 : OP_LENV3, to.RegNum, op.RegNum);
+		build->Emit(Self->ValueType == TypeVector2 || Self->ValueType == TypeFVector2 ? OP_LENV2 : OP_LENV3, to.RegNum, op.RegNum);
 	}
 	else
 	{
 		ExpEmit len(build, REGT_FLOAT);
-		build->Emit(Self->ValueType == TypeVector2 ? OP_LENV2 : OP_LENV3, len.RegNum, op.RegNum);
-		build->Emit(Self->ValueType == TypeVector2 ? OP_DIVVF2_RR : OP_DIVVF3_RR, to.RegNum, op.RegNum, len.RegNum);
+		build->Emit(Self->ValueType == TypeVector2 || Self->ValueType == TypeFVector2 ? OP_LENV2 : OP_LENV3, len.RegNum, op.RegNum);
+		build->Emit(Self->ValueType == TypeVector2 || Self->ValueType == TypeFVector2 ? OP_DIVVF2_RR : OP_DIVVF3_RR, to.RegNum, op.RegNum, len.RegNum);
 		len.Free(build);
 	}
 	op.Free(build);
@@ -10753,6 +10753,10 @@ ExpEmit FxClassPtrCast::Emit(VMFunctionBuilder *build)
 FxLocalVariableDeclaration::FxLocalVariableDeclaration(PType *type, FName name, FxExpression *initval, int varflags, const FScriptPosition &p)
 	:FxExpression(EFX_LocalVariableDeclaration, p)
 {
+	// Local FVector isn't different from Vector
+	if (type == TypeFVector2) type = TypeVector2;
+	else if (type == TypeFVector3) type = TypeVector3;
+
 	ValueType = type;
 	VarFlags = varflags;
 	Name = name;
