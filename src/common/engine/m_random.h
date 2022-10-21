@@ -41,7 +41,28 @@
 
 class FSerializer;
 
-class FRandom : public SFMTObj
+class FastRandom // [RaveYard]: not worth merging into GZDoom, consistently faster only by about 0.2ns
+{
+public:
+	uint32_t seed;
+
+	inline uint32_t GenRand32()
+	{
+		return seed = (((seed >> 1) + 14897) * 9331);
+	}
+
+	inline uint64_t GenRand64()
+	{
+		return (uint64_t(GenRand32()) << 32) | (GenRand32());
+	}
+
+	void Init(uint32_t seed)
+	{
+		this->seed = seed;
+	}
+};
+
+class FRandom : public FastRandom
 {
 public:
 	FRandom ();
@@ -50,17 +71,17 @@ public:
 
 	int Seed() const
 	{
-		return sfmt.u[0] + idx;
+		return seed;
 	}
 
 	// Returns a random number in the range [0,255]
-	int operator()()
+	inline int operator()()
 	{
 		return GenRand32() & 255;
 	}
 
 	// Returns a random number in the range [0,mod)
-	int operator() (int mod)
+	inline int operator() (int mod)
 	{
 		return (0 == mod)
 			? 0
@@ -68,30 +89,28 @@ public:
 	}
 
 	// Returns rand# - rand#
-	int Random2()
+	inline int Random2()
 	{
 		return Random2(255);
 	}
 
 // Returns (rand# & mask) - (rand# & mask)
-	int Random2(int mask)
+	inline int Random2(int mask)
 	{
 		int t = GenRand32() & mask & 255;
 		return t - (GenRand32() & mask & 255);
 	}
 
 	// HITDICE macro used in Heretic and Hexen
-	int HitDice(int count)
+	inline int HitDice(int count)
 	{
 		return (1 + (GenRand32() & 7)) * count;
 	}
 
-	int Random()				// synonym for ()
+	inline int Random()				// synonym for ()
 	{
 		return operator()();
 	}
-
-	void Init(uint32_t seed);
 
 	/* These real versions are due to Isaku Wada */
 	/** generates a random number on [0,1]-real-interval */

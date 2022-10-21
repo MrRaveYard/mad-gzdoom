@@ -241,22 +241,6 @@ void FRandom::StaticClearRandom ()
 
 //==========================================================================
 //
-// FRandom :: Init
-//
-// Initialize a single RNG with a given seed.
-//
-//==========================================================================
-
-void FRandom::Init(uint32_t seed)
-{
-	// [RH] Use the RNG's name's CRC to modify the original seed.
-	// This way, new RNGs can be added later, and it doesn't matter
-	// which order they get initialized in.
-	SFMTObj::Init(NameCRC, seed);
-}
-
-//==========================================================================
-//
 // FRandom :: StaticWriteRNGState
 //
 // Stores the state of every RNG into a savegame.
@@ -279,9 +263,7 @@ void FRandom::StaticWriteRNGState (FSerializer &arc)
 				if (arc.BeginObject(nullptr))
 				{
 					arc("crc", rng->NameCRC)
-						("index", rng->idx)
-						.Array("u", rng->sfmt.u, SFMT::N32)
-						.EndObject();
+						("seed", rng->seed).EndObject();
 				}
 			}
 		}
@@ -322,8 +304,7 @@ void FRandom::StaticReadRNGState(FSerializer &arc)
 				{
 					if (rng->NameCRC == crc)
 					{
-						arc("index", rng->idx)
-							.Array("u", rng->sfmt.u, SFMT::N32);
+						arc("seed", rng->seed);
 						break;
 					}
 				}
