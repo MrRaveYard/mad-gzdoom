@@ -371,6 +371,9 @@ static FFlagDef ActorFlagDefs[]=
 	DEFINE_FLAG(RF2, INVISIBLEINMIRRORS, AActor, renderflags2),
 	DEFINE_FLAG(RF2, ONLYVISIBLEINMIRRORS, AActor, renderflags2),
 
+	DEFINE_FLAG(RF2, INTERPOLATESCALE, AActor, renderflags2),
+	DEFINE_FLAG(RF2, INTERPOLATEALPHA, AActor, renderflags2),
+
 	// Bounce flags
 	DEFINE_FLAG2(BOUNCE_Walls, BOUNCEONWALLS, AActor, BounceFlags),
 	DEFINE_FLAG2(BOUNCE_Floors, BOUNCEONFLOORS, AActor, BounceFlags),
@@ -805,7 +808,7 @@ void SynthesizeFlagFields()
 DEFINE_ACTION_FUNCTION(DObject, BAM)
 {
 	PARAM_PROLOGUE;
-	PARAM_FLOAT(ang);
-	ACTION_RETURN_INT(DAngle(ang).BAMs());
+	PARAM_ANGLE(ang);
+	ACTION_RETURN_INT(ang.BAMs());
 }
 

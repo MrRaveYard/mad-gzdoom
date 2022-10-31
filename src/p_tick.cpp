@@ -38,6 +38,7 @@
 #include "events.h"
 #include "actorinlines.h"
 #include "g_game.h"
+#include "i_interface.h"
 
 extern gamestate_t wipegamestate;
 extern uint8_t globalfreeze, globalchangefreeze;
@@ -146,6 +147,16 @@ void P_Ticker (void)
 
 	// Since things will be moving, it's okay to interpolate them in the renderer.
 	r_NoInterpolate = false;
+
+	// Interpolate Zoom
+	if (!players[consoleplayer].camera || players[consoleplayer].camera->player)
+	{
+		players[consoleplayer].prevFOV = float(players[consoleplayer].FOV);
+	}
+	else
+	{
+		players[consoleplayer].prevFOV = float(players[consoleplayer].camera->CameraFOV);
+	}
 
 	// Reset all actor interpolations on all levels before the current thinking turn so that indirect actor movement gets properly interpolated.
 	for (auto Level : AllLevels())

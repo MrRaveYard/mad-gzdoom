@@ -481,6 +481,8 @@ enum ActorRenderFlag2
 {
 	RF2_INVISIBLEINMIRRORS		= 0x0001,	// [Nash] won't render in mirrors
 	RF2_ONLYVISIBLEINMIRRORS	= 0x0002,	// [Nash] only renders in mirrors
+	RF2_INTERPOLATESCALE		= 0x0004,	// allow interpolation of actor's scale
+	RF2_INTERPOLATEALPHA		= 0x0008,	// allow interpolation of actor's alpha
 };
 
 // This translucency value produces the closest match to Heretic's TINTTAB.
@@ -682,6 +684,7 @@ public:
 	TArray<int>			modelIDs;
 	TArray<FTextureID>	skinIDs;
 	TArray<FTextureID>	surfaceSkinIDs;
+	TArray<int>			animationIDs;
 	TArray<int>			modelFrameGenerators;
 
 	DActorModelData() = default;
@@ -1200,6 +1203,8 @@ public:
 	sector_t		*BlockingCeiling;	// Sector that blocked the last move (ceiling plane slope)
 	sector_t		*BlockingFloor;		// Sector that blocked the last move (floor plane slope)
 
+	uint32_t		freezetics;	// actor has actions completely frozen (including movement) for this many tics, but they still get Tick() calls
+
 	int PoisonDamage; // Damage received per tic from poison.
 	FName PoisonDamageType; // Damage type dealt by poison.
 	int PoisonDuration; // Duration left for receiving poison damage.
@@ -1275,6 +1280,8 @@ public:
 	// [RH] Used to interpolate the view to get >35 FPS
 	DVector3 Prev;
 	DRotator PrevAngles;
+	FVector2 PrevScale;
+	float PrevAlpha;
 	int PrevPortalGroup;
 	TArray<FDynamicLight *> AttachedLights;
 	TDeletingArray<FLightDefaults *> UserLights;
@@ -1420,6 +1427,53 @@ public:
 			return viewangle - (thisang + SpriteRotation);
 		}
 	}
+	DVector2 GetSpriteScale(double ticFrac)
+	{
+		if(renderflags2 & RF2_INTERPOLATESCALE)
+		{
+			DVector2 prev(PrevScale.X, PrevScale.Y);
+			return prev + (ticFrac * (DVector2(Scale.X, Scale.Y) - prev));
+		}
+		else
+		{
+			return DVector2(Scale.X, Scale.Y);
+		}
+	}
+	FVector2 GetSpriteScaleF(double ticFrac)
+	{
+		FVector2 scale(float(Scale.X), float(Scale.Y));
+		if (renderflags2 & RF2_INTERPOLATESCALE)
+		{
+			return PrevScale + (float(ticFrac) * (scale - PrevScale));
+		}
+		else
+		{
+			return scale;
+		}
+	}
+	double GetAlpha(double ticFrac) const
+	{
+		if (renderflags2 & RF2_INTERPOLATEALPHA)
+		{
+			return double(PrevAlpha) + (ticFrac * (Alpha - double(PrevAlpha)));
+		}
+		else
+		{
+			return Alpha;
+		}
+	}
+	float GetAlphaF(double ticFrac) const
+	{
+		if (renderflags2 & RF2_INTERPOLATEALPHA)
+		{
+			return PrevAlpha + float(ticFrac * (Alpha - double(PrevAlpha)));
+		}
+		else
+		{
+			return float(Alpha);
+		}
+	}
+
 	DVector3 PosPlusZ(double zadd) const
 	{
 		return { X(), Y(), Z() + zadd };

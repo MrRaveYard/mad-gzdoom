@@ -30,6 +30,8 @@ inline void AActor::ClearInterpolation()
 {
 	Prev = Pos();
 	PrevAngles = Angles;
+	PrevScale = FVector2(float(Scale.X), float(Scale.Y));
+	PrevAlpha = float(Alpha);
 	if (Sector) PrevPortalGroup = Sector->PortalGroup;
 	else PrevPortalGroup = 0;
 }
@@ -47,6 +49,12 @@ inline double sector_t::HighestCeilingAt(AActor *a, sector_t **resultsec)
 inline double sector_t::LowestFloorAt(AActor *a, sector_t **resultsec)
 {
 	return ::LowestFloorAt(this, a->X(), a->Y(), resultsec);
+}
+
+// Emulates the old floatbob offset table with direct calls to trig functions.
+inline double BobSin(double fb)
+{
+	return g_sindeg(double(fb * (180.0 / 32))) * 8;
 }
 
 inline double AActor::GetBobOffset(double ticfrac) const
@@ -159,6 +167,8 @@ inline DVector3 AActor::Vec3Angle(double length, DAngle angle, double dz, bool a
 
 inline bool AActor::isFrozen() const
 {
+	if (freezetics > 0)
+		return true;
 	if (!(flags5 & MF5_NOTIMEFREEZE))
 	{
 		auto state = Level->isFrozen();

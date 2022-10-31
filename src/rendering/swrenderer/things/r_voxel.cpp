@@ -135,12 +135,12 @@ namespace swrenderer
 		int voxelspin = (thing->flags & MF_DROPPED) ? voxel->DroppedSpin : voxel->PlacedSpin;
 		if (voxelspin != 0)
 		{
-			DAngle ang = double(screen->FrameTime) * voxelspin / 1000;
+			DAngle ang = DAngle::fromDeg((screen->FrameTime) * voxelspin / 1000.);
 			vis->Angle -= ang;
 		}
 
 		vis->pa.vpos = { (float)thread->Viewport->viewpoint.Pos.X, (float)thread->Viewport->viewpoint.Pos.Y, (float)thread->Viewport->viewpoint.Pos.Z };
-		vis->pa.vang = FAngle((float)thread->Viewport->viewpoint.Angles.Yaw.Degrees);
+		vis->pa.vang = FAngle::fromDeg(((float)thread->Viewport->viewpoint.Angles.Yaw.Degrees()));
 
 		// killough 3/27/98: save sector for special clipping later
 		vis->heightsec = heightsec;
@@ -159,7 +159,7 @@ namespace swrenderer
 		vis->FillColor = thing->fillcolor;
 		vis->Translation = thing->Translation;		// [RH] thing translation table
 		vis->FakeFlatStat = fakeside;
-		vis->Alpha = float(thing->Alpha);
+		vis->Alpha = thing->GetAlphaF(r_viewpoint.TicFrac);
 		vis->fakefloor = fakefloor;
 		vis->fakeceiling = fakeceiling;
 		vis->bInMirror = renderportal->MirrorFlags & RF_XFLIP;

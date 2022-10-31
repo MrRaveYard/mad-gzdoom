@@ -992,7 +992,7 @@ namespace swrenderer
 		if (thing == nullptr ||
 			(thing->renderflags & RF_INVISIBLE) ||
 			(thing->renderflags & RF_MAYBEINVISIBLE) ||
-			!thing->RenderStyle.IsVisible(thing->Alpha) ||
+			!thing->RenderStyle.IsVisible(thing->GetAlpha(r_viewpoint.TicFrac)) ||
 			!thing->IsVisibleToPlayer() ||
 			!thing->IsInsideVisibleAngles())
 		{
@@ -1048,7 +1048,7 @@ namespace swrenderer
 		sprite.spritenum = thing->sprite;
 		sprite.tex = nullptr;
 		sprite.voxel = nullptr;
-		sprite.spriteScale = DVector2(thing->Scale.X, thing->Scale.Y);
+		sprite.spriteScale = thing->GetSpriteScale(Thread->Viewport->viewpoint.TicFrac);
 		sprite.renderflags = thing->renderflags;
 
 		if (thing->player != nullptr)
@@ -1072,16 +1072,16 @@ namespace swrenderer
 				if (sprframe->Texture[0] == sprframe->Texture[1])
 				{
 					if (thing->flags7 & MF7_SPRITEANGLE)
-						rot = (thing->SpriteAngle + 45.0 / 2 * 9).BAMs() >> 28;
+						rot = (thing->SpriteAngle + DAngle::fromDeg(45.0 / 2 * 9)).BAMs() >> 28;
 					else
-						rot = (ang - (thing->Angles.Yaw + thing->SpriteRotation) + 45.0 / 2 * 9).BAMs() >> 28;
+						rot = (ang - (thing->Angles.Yaw + thing->SpriteRotation) + DAngle::fromDeg(45.0 / 2 * 9)).BAMs() >> 28;
 				}
 				else
 				{
 					if (thing->flags7 & MF7_SPRITEANGLE)
-						rot = (thing->SpriteAngle + (45.0 / 2 * 9 - 180.0 / 16)).BAMs() >> 28;
+						rot = (thing->SpriteAngle + DAngle::fromDeg(45.0 / 2 * 9 - 180.0 / 16)).BAMs() >> 28;
 					else
-						rot = (ang - (thing->Angles.Yaw + thing->SpriteRotation) + (45.0 / 2 * 9 - 180.0 / 16)).BAMs() >> 28;
+						rot = (ang - (thing->Angles.Yaw + thing->SpriteRotation) + DAngle::fromDeg(45.0 / 2 * 9 - 180.0 / 16)).BAMs() >> 28;
 				}
 				sprite.picnum = sprframe->Texture[rot];
 				if (sprframe->Flip & (1 << rot))

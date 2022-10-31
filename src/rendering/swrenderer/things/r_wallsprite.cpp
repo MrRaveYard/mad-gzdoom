@@ -75,7 +75,7 @@ namespace swrenderer
 		double x1, x2;
 		DVector2 left, right;
 		double gzb, gzt, tz;
-		DAngle ang = thing->Angles.Yaw + 90;
+		DAngle ang = thing->Angles.Yaw + DAngle::fromDeg(90);
 		double angcos = ang.Cos();
 		double angsin = ang.Sin();
 
@@ -130,7 +130,7 @@ namespace swrenderer
 		vis->FillColor = thing->fillcolor;
 		vis->Translation = thing->Translation;
 		vis->FakeFlatStat = WaterFakeSide::Center;
-		vis->Alpha = float(thing->Alpha);
+		vis->Alpha = thing->GetAlphaF(r_viewpoint.TicFrac);
 		vis->fakefloor = NULL;
 		vis->fakeceiling = NULL;
 		//vis->bInMirror = renderportal->MirrorFlags & RF_XFLIP;

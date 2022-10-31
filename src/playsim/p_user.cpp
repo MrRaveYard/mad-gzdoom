@@ -265,6 +265,7 @@ void player_t::CopyFrom(player_t &p, bool copyPSP)
 	cls = p.cls;
 	DesiredFOV = p.DesiredFOV;
 	FOV = p.FOV;
+	prevFOV = p.prevFOV;
 	viewz = p.viewz;
 	viewheight = p.viewheight;
 	deltaviewheight = p.deltaviewheight;
@@ -1248,7 +1249,7 @@ void P_PlayerThink (player_t *player)
 	{
 		fprintf (debugfile, "tic %d for pl %d: (%f, %f, %f, %f) b:%02x p:%d y:%d f:%d s:%d u:%d\n",
 			gametic, (int)(player-players), player->mo->X(), player->mo->Y(), player->mo->Z(),
-			player->mo->Angles.Yaw.Degrees, player->cmd.ucmd.buttons,
+			player->mo->Angles.Yaw.Degrees(), player->cmd.ucmd.buttons,
 			player->cmd.ucmd.pitch, player->cmd.ucmd.yaw, player->cmd.ucmd.forwardmove,
 			player->cmd.ucmd.sidemove, player->cmd.ucmd.upmove);
 	}
@@ -1620,6 +1621,7 @@ void player_t::Serialize(FSerializer &arc)
 
 	arc("desiredfov", DesiredFOV)
 		("fov", FOV)
+		("prevfov", prevFOV)
 		("viewz", viewz)
 		("viewheight", viewheight)
 		("deltaviewheight", deltaviewheight)
@@ -1727,6 +1729,7 @@ DEFINE_FIELD_X(PlayerInfo, player_t, original_oldbuttons)
 DEFINE_FIELD_X(PlayerInfo, player_t, cls)
 DEFINE_FIELD_X(PlayerInfo, player_t, DesiredFOV)
 DEFINE_FIELD_X(PlayerInfo, player_t, FOV)
+DEFINE_FIELD_X(PlayerInfo, player_t, prevFOV)
 DEFINE_FIELD_X(PlayerInfo, player_t, viewz)
 DEFINE_FIELD_X(PlayerInfo, player_t, viewheight)
 DEFINE_FIELD_X(PlayerInfo, player_t, deltaviewheight)

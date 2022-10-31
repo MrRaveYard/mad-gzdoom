@@ -9,6 +9,7 @@ class Weapon : StateProvider
 
 	const ZOOM_INSTANT = 1;
 	const ZOOM_NOSCALETURNING = 2;
+	const ZOOM_INTERPOLATE = 4;
 	
 	deprecated("3.7") uint WeaponFlags;		// not to be used directly.
 	class<Ammo> AmmoType1, AmmoType2;		// Types of ammo used by self weapon
@@ -465,6 +466,10 @@ class Weapon : StateProvider
 			{ // Disable pitch/yaw scaling.
 				zoom = -zoom;
 			}
+			if (!(flags & 4))
+			{ // Disable pitch/yaw scaling.
+				player.prevFOV = player.FOV;
+			}
 			player.ReadyWeapon.FOVScale = zoom;
 		}
 	}
@@ -742,7 +747,7 @@ class Weapon : StateProvider
 
 		// [BC] This behavior is from the original Doom. Give 5/2 times as much ammoitem when
 		// we pick up a weapon in deathmatch.
-		if (( deathmatch ) && ( gameinfo.gametype & GAME_DoomChex ))
+		if (( deathmatch && !sv_noextraammo ) && ( gameinfo.gametype & GAME_DoomChex ))
 			amount = amount * 5 / 2;
 
 		// extra ammoitem in baby mode and nightmare mode

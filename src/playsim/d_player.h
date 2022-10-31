@@ -307,6 +307,7 @@ public:
 
 	float		DesiredFOV = 0;				// desired field of vision
 	float		FOV = 0;					// current field of vision
+	float		prevFOV = 0;				// field of vision in previous tick for interpolation purposes
 	double		viewz = 0;					// focal origin above r.z
 	double		viewheight = 0;				// base height above floor for viewz
 	double		deltaviewheight = 0;		// squat speed.
@@ -396,8 +397,8 @@ public:
 	FString		SubtitleText;
 	int			SubtitleCounter;
 
-	DAngle			MinPitch = 0.;	// Viewpitch limits (negative is up, positive is down)
-	DAngle			MaxPitch = 0.;
+	DAngle			MinPitch = nullAngle;	// Viewpitch limits (negative is up, positive is down)
+	DAngle			MaxPitch = nullAngle;
 
 	double crouchfactor = 0;
 	double crouchoffset = 0;
@@ -407,7 +408,7 @@ public:
 
 	// [CW] I moved these here for multiplayer conversation support.
 	TObjPtr<AActor*> ConversationNPC = MakeObjPtr<AActor*>(nullptr), ConversationPC = MakeObjPtr<AActor*>(nullptr);
-	DAngle ConversationNPCAngle = 0.;
+	DAngle ConversationNPCAngle = nullAngle;
 	bool ConversationFaceTalker = false;
 
 	double GetDeltaViewHeight() const

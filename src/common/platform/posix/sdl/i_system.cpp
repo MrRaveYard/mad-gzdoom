@@ -301,7 +301,7 @@ void I_PrintStr(const char *cp)
 	if (StartWindow) RedrawProgressBar(ProgressBarCurPos,ProgressBarMaxPos);
 }
 
-int I_PickIWad (WadStuff *wads, int numwads, bool showwin, int defaultiwad)
+int I_PickIWad (WadStuff *wads, int numwads, bool showwin, int defaultiwad, int&)
 {
 	int i;
 
@@ -456,7 +456,7 @@ void I_OpenShellFolder(const char* infolder)
 	if (!chdir(infolder))
 	{
 		Printf("Opening folder: %s\n", infolder);
-		system("xdg-open .");
+		std::system("xdg-open .");
 		chdir(curdir);
 	}
 	else
