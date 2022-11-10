@@ -4662,7 +4662,7 @@ FxExpression *FxDotCross::Resolve(FCompileContext& ctx)
 	RESOLVE(right, ctx);
 	ABORT(right && left);
 
-	if (!left->IsVector() || left->ValueType != right->ValueType || (Operator == TK_Cross && left->ValueType != TypeVector3) || (Operator == TK_Cross && left->ValueType != TypeVector4))
+	if (!left->IsVector() || left->ValueType != right->ValueType || (Operator == TK_Cross && left->ValueType != TypeVector3))
 	{
 		ScriptPosition.Message(MSG_ERROR, "Incompatible operants for %sproduct", Operator == TK_Cross ? "cross-" : "dot-");
 		delete this;
