@@ -10963,7 +10963,7 @@ FxLocalVariableDeclaration::FxLocalVariableDeclaration(PType *type, FName name, 
 	ValueType = type;
 	VarFlags = varflags;
 	Name = name;
-	RegCount = type == TypeVector2 ? 2 : type == TypeVector3 ? 3 : type == TypeVector4 ? 4 : 1;
+	RegCount = type->RegCount;
 	Init = initval;
 	clearExpr = nullptr;
 }
