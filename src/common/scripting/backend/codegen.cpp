@@ -622,7 +622,6 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 	// Handle nesting and figure out the dimension of the vector
 
 	int vectorDimensions = 0;
-	int vectorElementIndex = 0;
 
 	for (int i = 0; i < int(std::size(xyzw)) && xyzw[i]; ++i)
 	{
@@ -631,39 +630,33 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 		if (xyzw[i]->ValueType == TypeFloat64)
 		{
 			vectorDimensions++;
-			vectorElementIndex++;
 		}
 		else if (xyzw[i]->ValueType == TypeVector2 || xyzw[i]->ValueType == TypeVector3 || xyzw[i]->ValueType == TypeVector4)
 		{
 			// Solve nested vector
-			int nestedVectorDimensions = xyzw[i]->ValueType == TypeVector2 ? 2 : xyzw[i]->ValueType == TypeVector3 ? 3 : 4;
+			int regCount = xyzw[i]->ValueType->RegCount;
 
-			vectorDimensions += nestedVectorDimensions;
+			vectorDimensions += regCount;
 
-			// Nested initializer gets consumed
+			// Nested initializer gets simplified
 			if (xyzw[i]->ExprType == EFX_VectorValue)
 			{
 				// [RaveYard]: I know this sucks, but there's no point in risking better solutions right now
 				// Shift remaining elements
 				for (int k = vectorDimensions - 1; k; --k)
 				{
-					for (int l = int(std::size(xyzw)) - 1; l > vectorElementIndex ; --l)
+					for (int l = int(std::size(xyzw)) - 1; l > i ; --l)
 					{
 						xyzw[l] = xyzw[l - 1];
 					}
 				}
 
 				auto vi = static_cast<FxVectorValue*>(xyzw[i]);
-				for (int j = 0; j < nestedVectorDimensions; ++j)
+				for (int j = 0; j < regCount; ++j)
 				{
-					xyzw[vectorElementIndex++] = std::move(vi->xyzw[j]);
+					xyzw[i + j] = std::move(vi->xyzw[j]);
 				}
 				delete vi;
-			}
-			else
-			{
-				// We have a vector variable inside our vector expression, keep things as they are
-				vectorElementIndex++;
 			}
 		}
 		else
@@ -714,7 +707,7 @@ static ExpEmit EmitKonst(VMFunctionBuilder *build, ExpEmit &emit)
 
 ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 {
-	int vectorSize = ValueType == TypeVector2 ? 2 : ValueType == TypeVector3 ? 3 : 4;
+	int vectorSize = ValueType->RegCount;
 	int vectorElements = 0;
 	for (auto& e : xyzw)
 	{
@@ -725,6 +718,7 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 	ExpEmit* tempVal = (ExpEmit*)calloc(vectorSize, sizeof(ExpEmit));
 	ExpEmit* val = (ExpEmit*)calloc(vectorSize, sizeof(ExpEmit));
 
+	// Init ExpEmit
 	for (int i = 0; i < vectorElements; ++i)
 	{
 		new(tempVal + i) ExpEmit(xyzw[i]->Emit(build));
@@ -740,15 +734,17 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 			continue;
 		}
 
-		int elementSize = xyzw[src]->ValueType == TypeVector2 ? 2 : xyzw[src]->ValueType == TypeVector3 ? 3 : xyzw[src]->ValueType == TypeVector4 ? 4 : 1;
+		int regCount = xyzw[src]->ValueType->RegCount;
 
-		build->Emit(elementSize == 1 ? OP_MOVEF : OP_MOVEV2 + elementSize - 2, out.RegNum + i, val[src].RegNum);
+		build->Emit(regCount == 1 ? OP_MOVEF : OP_MOVEV2 + regCount - 2, out.RegNum + i, val[src].RegNum);
+		static_assert(OP_MOVEV2 + 1 == OP_MOVEV3);
+		static_assert(OP_MOVEV3 + 1 == OP_MOVEV4);
 
-		i += elementSize;
+		i += regCount;
 		++src;
 	}
 
-	// Deallocate
+	// Destroy objects
 	for (int i = 0; i < vectorElements; ++i)
 	{
 		val[i].Free(build);
