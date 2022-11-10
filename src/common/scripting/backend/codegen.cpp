@@ -596,6 +596,7 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 {
 	bool fails = false;
 
+	// Cast every scalar to float64
 	for (auto &a : xyzw)
 	{
 		if (a != nullptr)
@@ -613,6 +614,7 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 			}
 		}
 	}
+
 	if (fails)
 	{
 		delete this;
@@ -636,16 +638,20 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 			// Solve nested vector
 			int regCount = xyzw[i]->ValueType->RegCount;
 
-			vectorDimensions += regCount;
+			if (regCount + vectorDimensions > std::size(xyzw))
+			{
+				vectorDimensions += regCount; // show proper number
+				goto too_big;
+			}
 
 			// Nested initializer gets simplified
 			if (xyzw[i]->ExprType == EFX_VectorValue)
 			{
 				// [RaveYard]: I know this sucks, but there's no point in risking better solutions right now
 				// Shift remaining elements
-				for (int k = vectorDimensions - 1; k; --k)
+				for (int k = regCount - 1; k > 0; --k)
 				{
-					for (int l = int(std::size(xyzw)) - 1; l > i ; --l)
+					for (int l = int(std::size(xyzw)) - 1; l > i; --l)
 					{
 						xyzw[l] = xyzw[l - 1];
 					}
@@ -654,9 +660,18 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 				auto vi = static_cast<FxVectorValue*>(xyzw[i]);
 				for (int j = 0; j < regCount; ++j)
 				{
-					xyzw[i + j] = std::move(vi->xyzw[j]);
+					xyzw[i + j] = vi->xyzw[j];
+					vi->xyzw[j] = nullptr;
 				}
 				delete vi;
+
+				// We extracted something, let's iterate on that again:
+				--i;
+				continue;
+			}
+			else
+			{
+				vectorDimensions += regCount;
 			}
 		}
 		else
@@ -667,19 +682,13 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 		}
 	}
 
-	if (vectorDimensions <= 0)
-	{
-		ScriptPosition.Message(MSG_ERROR, "Empty vector");
-		delete this;
-		return nullptr;
-	}
-
 	switch (vectorDimensions)
 	{
 	case 2: ValueType = TypeVector2; break;
 	case 3: ValueType = TypeVector3; break;
 	case 4: ValueType = TypeVector4; break;
 	default:
+	too_big:;
 		ScriptPosition.Message(MSG_ERROR, "Vector of %d dimensions is not supported", vectorDimensions);
 		delete this;
 		return nullptr;
