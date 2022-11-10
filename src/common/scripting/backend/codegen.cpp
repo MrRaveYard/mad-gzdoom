@@ -484,11 +484,14 @@ int EncodeRegType(ExpEmit reg)
 	else if (reg.RegCount == 2)
 	{
 		regtype |= REGT_MULTIREG2;
-
 	}
 	else if (reg.RegCount == 3)
 	{
 		regtype |= REGT_MULTIREG3;
+	}
+	else if (reg.RegCount == 4)
+	{
+		regtype |= REGT_MULTIREG4;
 	}
 	return regtype;
 }

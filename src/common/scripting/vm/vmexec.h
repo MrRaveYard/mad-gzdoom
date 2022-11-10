@@ -767,6 +767,15 @@ static int ExecScriptFunc(VMFrameStack *stack, VMReturn *ret, int numret)
 					::new(param + 2) VMValue(reg.f[b + 2]);
 					f->NumParam += 2;
 					break;
+				case REGT_FLOAT | REGT_MULTIREG4:
+					assert(b < f->NumRegF - 3);
+					assert(f->NumParam < sfunc->MaxParam - 2);
+					::new(param) VMValue(reg.f[b]);
+					::new(param + 1) VMValue(reg.f[b + 1]);
+					::new(param + 2) VMValue(reg.f[b + 2]);
+					::new(param + 3) VMValue(reg.f[b + 3]);
+					f->NumParam += 3;
+					break;
 				case REGT_FLOAT | REGT_ADDROF:
 					assert(b < f->NumRegF);
 					::new(param) VMValue(&reg.f[b]);
@@ -2173,7 +2182,11 @@ static void SetReturn(const VMRegisters &reg, VMFrame *frame, VMReturn *ret, VM_
 			assert(regnum < frame->NumRegF);
 			src = &reg.f[regnum];
 		}
-		if (regtype & REGT_MULTIREG3)
+		if (regtype & REGT_MULTIREG4)
+		{
+			ret->SetVector4((double*)src);
+		}
+		else if (regtype & REGT_MULTIREG3)
 		{
 			ret->SetVector((double *)src);
 		}
