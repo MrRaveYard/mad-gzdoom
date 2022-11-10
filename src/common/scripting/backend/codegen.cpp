@@ -3263,7 +3263,7 @@ ExpEmit FxMulDiv::Emit(VMFunctionBuilder *build)
 		}
 		else
 		{
-			op = Operator == '*' ? (IsVector2() ? OP_MULVF2_RR : IsVector3() ? OP_MULVF3_RR : OP_MULVF3_RR) : (IsVector2() ? OP_DIVVF2_RR : IsVector3() ? OP_DIVVF3_RR : OP_DIVVF4_RR);
+			op = Operator == '*' ? (IsVector2() ? OP_MULVF2_RR : IsVector3() ? OP_MULVF3_RR : OP_MULVF4_RR) : (IsVector2() ? OP_DIVVF2_RR : IsVector3() ? OP_DIVVF3_RR : OP_DIVVF4_RR);
 		}
 		op1.Free(build);
 		op2.Free(build);
