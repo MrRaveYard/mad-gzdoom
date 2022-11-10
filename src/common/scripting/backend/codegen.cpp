@@ -621,8 +621,10 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 		return nullptr;
 	}
 
-	// Handle nesting and figure out the dimension of the vector
+	// The actual dimension of the Vector does not correspond to the amount of non-null elements in xyzw
+	// For example: '(asdf.xy, 1)' would be Vector3 where xyzw[0] is Vector2 variable
 
+	// Handle nesting and figure out the dimension of the vector
 	int vectorDimensions = 0;
 
 	for (int i = 0; i < int(std::size(xyzw)) && xyzw[i]; ++i)
@@ -716,16 +718,16 @@ static ExpEmit EmitKonst(VMFunctionBuilder *build, ExpEmit &emit)
 
 ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 {
-	int vectorSize = ValueType->RegCount;
+	int vectorDimensions = ValueType->RegCount;
 	int vectorElements = 0;
 	for (auto& e : xyzw)
 	{
 		if (e) vectorElements++;
 	}
 
-	ExpEmit out(build, REGT_FLOAT, vectorSize);
-	ExpEmit* tempVal = (ExpEmit*)calloc(vectorSize, sizeof(ExpEmit));
-	ExpEmit* val = (ExpEmit*)calloc(vectorSize, sizeof(ExpEmit));
+	ExpEmit out(build, REGT_FLOAT, vectorDimensions);
+	ExpEmit* tempVal = (ExpEmit*)calloc(vectorDimensions, sizeof(ExpEmit));
+	ExpEmit* val = (ExpEmit*)calloc(vectorDimensions, sizeof(ExpEmit));
 
 	// Init ExpEmit
 	for (int i = 0; i < vectorElements; ++i)
@@ -735,22 +737,16 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 	}
 
 	// TODO handle cases where multiple registers are continous in memory
-	for (int src = 0, i = 0; i < vectorSize;)
+	for (int elementIndex = 0, i = 0; i < vectorDimensions && xyzw[elementIndex];)
 	{
-		if (!xyzw[src])
-		{
-			++src;
-			continue;
-		}
+		int regCount = xyzw[elementIndex]->ValueType->RegCount;
 
-		int regCount = xyzw[src]->ValueType->RegCount;
-
-		build->Emit(regCount == 1 ? OP_MOVEF : OP_MOVEV2 + regCount - 2, out.RegNum + i, val[src].RegNum);
+		build->Emit(regCount == 1 ? OP_MOVEF : OP_MOVEV2 + regCount - 2, out.RegNum + i, val[elementIndex].RegNum);
 		static_assert(OP_MOVEV2 + 1 == OP_MOVEV3);
 		static_assert(OP_MOVEV3 + 1 == OP_MOVEV4);
 
 		i += regCount;
-		++src;
+		++elementIndex;
 	}
 
 	// Destroy objects
