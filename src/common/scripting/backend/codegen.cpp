@@ -625,7 +625,7 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 	}
 
 	// The actual dimension of the Vector does not correspond to the amount of non-null elements in xyzw
-	// For example: '(asdf.xy, 1)' would be Vector3 where xyzw[0] is Vector2 variable
+	// For example: '(asdf.xy, 1)' would be Vector3 where xyzw[0]->ValueType == TypeVector2 and xyzw[1]->ValueType == TypeFloat64
 
 	// Handle nesting and figure out the dimension of the vector
 	int vectorDimensions = 0;
@@ -645,28 +645,24 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 
 			if (regCount + vectorDimensions > std::size(xyzw))
 			{
-				vectorDimensions += regCount; // show proper number
+				vectorDimensions += regCount; // Show proper number
 				goto too_big;
 			}
 
 			// Nested initializer gets simplified
 			if (xyzw[i]->ExprType == EFX_VectorValue)
 			{
-				// [RaveYard]: I know this sucks, but there's no point in risking better solutions right now
-				// Shift remaining elements
-				for (int k = regCount - 1; k > 0; --k)
+				// Shifts current elements to leave space for unwrapping nested initialization
+				for (int l = int(std::size(xyzw)) - 1; l > i; --l)
 				{
-					for (int l = int(std::size(xyzw)) - 1; l > i; --l)
-					{
-						xyzw[l] = xyzw[l - 1];
-					}
+					xyzw[l] = xyzw[l - regCount + 1];
 				}
 
 				auto vi = static_cast<FxVectorValue*>(xyzw[i]);
 				for (int j = 0; j < regCount; ++j)
 				{
 					xyzw[i + j] = vi->xyzw[j];
-					vi->xyzw[j] = nullptr;
+					vi->xyzw[j] = nullptr; // Preserve object after 'delete vi;'
 				}
 				delete vi;
 
