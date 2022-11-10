@@ -566,7 +566,7 @@ public:
 		if (!isConst)
 			return false;
 
-		return dim >= 0 && dim < std::size(xyzw) && xyzw[dim - 1] && !xyzw[dim];
+		return dim >= 0 && dim <= std::size(xyzw) && xyzw[dim - 1] && (dim == std::size(xyzw) || !xyzw[dim]);
 	}
 
 	ExpEmit Emit(VMFunctionBuilder *build);

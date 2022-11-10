@@ -3966,7 +3966,7 @@ ExpEmit FxCompareEq::EmitCommon(VMFunctionBuilder *build, bool forcompare, bool 
 			std::swap(op1, op2);
 		}
 		assert(!op1.Konst);
-		assert(op1.RegCount >= 1 && op1.RegCount <= 3);
+		assert(op1.RegCount >= 1 && op1.RegCount <= 4);
 
 		ExpEmit to(build, REGT_INT);
 
