@@ -604,7 +604,7 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 			if (a == nullptr) fails = true;
 			else
 			{
-				if (a->ValueType != TypeVector2 && a->ValueType != TypeVector3)	// a vec3 may be initialized with (vec2, z) and vec4 with (vec3, w) or (vec2, z, w)
+				if (a->ValueType != TypeVector2 && a->ValueType != TypeVector3)	// smaller vector can be used to initialize another vector
 				{
 					a = new FxFloatCast(a);
 					a = a->Resolve(ctx);
@@ -3259,11 +3259,11 @@ ExpEmit FxMulDiv::Emit(VMFunctionBuilder *build)
 		int op;
 		if (op2.Konst)
 		{
-			op = Operator == '*' ? (IsVector2() ? OP_MULVF2_RK : OP_MULVF3_RK) : (IsVector2() ? OP_DIVVF2_RK : OP_DIVVF3_RK);
+			op = Operator == '*' ? (IsVector2() ? OP_MULVF2_RK : IsVector3() ? OP_MULVF3_RK : OP_MULVF4_RK) : (IsVector2() ? OP_DIVVF2_RK : IsVector3() ? OP_DIVVF3_RK : OP_DIVVF4_RK);
 		}
 		else
 		{
-			op = Operator == '*' ? (IsVector2() ? OP_MULVF2_RR : OP_MULVF3_RR) : (IsVector2() ? OP_DIVVF2_RR : OP_DIVVF3_RR);
+			op = Operator == '*' ? (IsVector2() ? OP_MULVF2_RR : IsVector3() ? OP_MULVF3_RR : OP_MULVF3_RR) : (IsVector2() ? OP_DIVVF2_RR : IsVector3() ? OP_DIVVF3_RR : OP_DIVVF4_RR);
 		}
 		op1.Free(build);
 		op2.Free(build);
@@ -10957,11 +10957,12 @@ FxLocalVariableDeclaration::FxLocalVariableDeclaration(PType *type, FName name, 
 	// Local FVector isn't different from Vector
 	if (type == TypeFVector2) type = TypeVector2;
 	else if (type == TypeFVector3) type = TypeVector3;
+	else if (type == TypeFVector4) type = TypeVector4;
 
 	ValueType = type;
 	VarFlags = varflags;
 	Name = name;
-	RegCount = type == TypeVector2 ? 2 : type == TypeVector3 ? 3 : 1;
+	RegCount = type == TypeVector2 ? 2 : type == TypeVector3 ? 3 : type == TypeVector4 ? 4 : 1;
 	Init = initval;
 	clearExpr = nullptr;
 }
