@@ -604,7 +604,7 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 			if (a == nullptr) fails = true;
 			else
 			{
-				if (a->ValueType != TypeVector2)	// a vec3 may be initialized with (vec2, z)
+				if (a->ValueType != TypeVector2 && a->ValueType != TypeVector3)	// a vec3 may be initialized with (vec2, z) and vec4 with (vec3, w) or (vec2, z, w)
 				{
 					a = new FxFloatCast(a);
 					a = a->Resolve(ctx);
@@ -618,54 +618,76 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 		delete this;
 		return nullptr;
 	}
-	// at this point there are five legal cases:
-	// * two floats = vector2
-	// * three floats = vector3
-	// * four floats = vector4
-	// * vector2 + float = vector3
-	// * vector3 + float = vector4
-	if (xyzw[0]->ValueType == TypeVector2)
+
+	// Handle nesting and figure out the dimension of the vector
+
+	int vectorDimensions = 0;
+	int vectorElementIndex = 0;
+
+	for (int i = 0; i < int(std::size(xyzw)) && xyzw[i]; ++i)
 	{
-		if (xyzw[1]->ValueType != TypeFloat64 || xyzw[2] != nullptr)
+		assert(dynamic_cast<FxExpression*>(xyzw[i]));
+
+		if (xyzw[i]->ValueType == TypeFloat64)
+		{
+			vectorDimensions++;
+			vectorElementIndex++;
+		}
+		else if (xyzw[i]->ValueType == TypeVector2 || xyzw[i]->ValueType == TypeVector3 || xyzw[i]->ValueType == TypeVector4)
+		{
+			// Solve nested vector
+			int nestedVectorDimensions = xyzw[i]->ValueType == TypeVector2 ? 2 : xyzw[i]->ValueType == TypeVector3 ? 3 : 4;
+
+			vectorDimensions += nestedVectorDimensions;
+
+			// Nested initializer gets consumed
+			if (xyzw[i]->ExprType == EFX_VectorValue)
+			{
+				// [RaveYard]: I know this sucks, but there's no point in risking better solutions right now
+				// Shift remaining elements
+				for (int k = vectorDimensions - 1; k; --k)
+				{
+					for (int l = int(std::size(xyzw)) - 1; l > vectorElementIndex ; --l)
+					{
+						xyzw[l] = xyzw[l - 1];
+					}
+				}
+
+				auto vi = static_cast<FxVectorValue*>(xyzw[i]);
+				for (int j = 0; j < nestedVectorDimensions; ++j)
+				{
+					xyzw[vectorElementIndex++] = std::move(vi->xyzw[j]);
+				}
+				delete vi;
+			}
+			else
+			{
+				// We have a vector variable inside our vector expression, keep things as they are
+				vectorElementIndex++;
+			}
+		}
+		else
 		{
 			ScriptPosition.Message(MSG_ERROR, "Not a valid vector");
 			delete this;
 			return nullptr;
 		}
-		ValueType = TypeVector3;
-		if (xyzw[0]->ExprType == EFX_VectorValue)
-		{
-			// If two vector initializers are nested, unnest them now.
-			auto vi = static_cast<FxVectorValue*>(xyzw[0]);
-			xyzw[2] = xyzw[1];
-			xyzw[1] = vi->xyzw[1];
-			xyzw[0] = vi->xyzw[0];
-			vi->xyzw[0] = vi->xyzw[1] = nullptr; // Don't delete our own expressions.
-			delete vi;
-		}
-		ValueType = TypeVector4;
-		if (xyzw[0]->ExprType == EFX_VectorValue)
-		{
-			// If two vector initializers are nested, unnest them now.
-			auto vi = static_cast<FxVectorValue*>(xyzw[0]);
-			xyzw[2] = xyzw[1];
-			xyzw[1] = vi->xyzw[1];
-			xyzw[0] = vi->xyzw[0];
-			vi->xyzw[0] = vi->xyzw[1] = nullptr; // Don't delete our own expressions.
-			delete vi;
-		}
 	}
-	else if (xyzw[0]->ValueType == TypeFloat64 && xyzw[1]->ValueType == TypeFloat64)
+
+	if (vectorDimensions <= 0)
 	{
-		ValueType = xyzw[2] == nullptr ? TypeVector2 : TypeVector3;
+		ScriptPosition.Message(MSG_ERROR, "Empty vector");
+		delete this;
+		return nullptr;
 	}
-	else if (xyzw[0]->ValueType == TypeFloat64 && xyzw[1]->ValueType == TypeFloat64 && xyzw[2]->ValueType == TypeFloat64)
+
+	switch (vectorDimensions)
 	{
-		ValueType = xyzw[3] == nullptr ? TypeVector3 : TypeVector4;
-	}
-	else
-	{
-		ScriptPosition.Message(MSG_ERROR, "Not a valid vector");
+	case 2: ValueType = TypeVector2; break;
+	case 3: ValueType = TypeVector3; break;
+	case 4: ValueType = TypeVector4; break;
+	default:
+		ScriptPosition.Message(MSG_ERROR, "Vector of %d dimensions is not supported", vectorDimensions);
 		delete this;
 		return nullptr;
 	}
@@ -674,7 +696,7 @@ FxExpression *FxVectorValue::Resolve(FCompileContext&ctx)
 	isConst = true;
 	for (auto &a : xyzw)
 	{
-		if (a != nullptr && !a->isConstant()) isConst = false;
+		if (a && !a->isConstant()) isConst = false;
 	}
 	return this;
 }
