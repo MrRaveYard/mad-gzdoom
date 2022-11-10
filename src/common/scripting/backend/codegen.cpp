@@ -714,6 +714,50 @@ static ExpEmit EmitKonst(VMFunctionBuilder *build, ExpEmit &emit)
 
 ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 {
+	int vectorSize = ValueType == TypeVector2 ? 2 : ValueType == TypeVector3 ? 3 : 4;
+	int vectorElements = 0;
+	for (auto& e : xyzw)
+	{
+		if (e) vectorElements++;
+	}
+
+	ExpEmit out(build, REGT_FLOAT, vectorSize);
+	ExpEmit* tempVal = (ExpEmit*)calloc(vectorSize, sizeof(ExpEmit));
+	ExpEmit* val = (ExpEmit*)calloc(vectorSize, sizeof(ExpEmit));
+
+	for (int i = 0; i < vectorElements; ++i)
+	{
+		new(tempVal + i) ExpEmit(xyzw[i]->Emit(build));
+		new(val + i) ExpEmit(EmitKonst(build, tempVal[i]));
+	}
+
+	// TODO handle cases where multiple registers are continous in memory
+	for (int src = 0, i = 0; i < vectorSize;)
+	{
+		if (!xyzw[src])
+		{
+			++src;
+			continue;
+		}
+
+		int elementSize = xyzw[src]->ValueType == TypeVector2 ? 2 : xyzw[src]->ValueType == TypeVector3 ? 3 : xyzw[src]->ValueType == TypeVector4 ? 4 : 1;
+
+		build->Emit(elementSize == 1 ? OP_MOVEF : OP_MOVEV2 + elementSize - 2, out.RegNum + i, val[src].RegNum);
+
+		i += elementSize;
+		++src;
+	}
+
+	// Deallocate
+	for (int i = 0; i < vectorElements; ++i)
+	{
+		val[i].Free(build);
+		val[i].~ExpEmit();
+	}
+
+	return out;
+
+	/*
 	// no const handling here. Ultimately it's too rarely used (i.e. the only fully constant vector ever allocated in ZDoom is the 0-vector in a very few places)
 	// and the negatives (excessive allocation of float constants) outweigh the positives (saved a few instructions)
 	assert(xyzw[0] != nullptr);
@@ -808,7 +852,7 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 			return out;
 		}
 	}
-	else
+	else if (xyzw[0]->ValueType == TypeVector3)
 	{
 		assert(xyzw[3] != nullptr);
 		ExpEmit tempxval = xyzw[0]->Emit(build);
@@ -820,7 +864,7 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 		ExpEmit zval = EmitKonst(build, tempzval);
 		ExpEmit wval = EmitKonst(build, tempwval);
 		assert(xval.RegType == REGT_FLOAT && yval.RegType == REGT_FLOAT && zval.RegType == REGT_FLOAT && wval.RegType == REGT_FLOAT);
-		if (yval.RegNum == xval.RegNum + 1 && zval.RegNum == xval.RegNum + 2)
+		if (yval.RegNum == xval.RegNum + 1 && zval.RegNum == xval.RegNum + 2 && wval.RegNum == xval.RegNum + 3)
 		{
 			// The results are already in three continuous registers so just return them as-is.
 			xval.RegCount += 3;
@@ -847,12 +891,9 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 				build->Emit(OP_MOVEF, out.RegNum + 1, yval.RegNum);
 				build->Emit(OP_MOVEF, out.RegNum + 2, zval.RegNum);
 			}
-			xval.Free(build);
-			yval.Free(build);
-			zval.Free(build);
 			return out;
 		}
-	}
+	*/
 }
 
 //==========================================================================
