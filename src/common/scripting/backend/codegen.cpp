@@ -751,26 +751,24 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 		int lastElementIndex = 0;
 		int reg = 0;
 
-		for (int elementIndex = 0; elementIndex < vectorElements;)
+		for (int elementIndex = 0; elementIndex < vectorElements; ++elementIndex)
 		{
 			int regCount = xyzw[elementIndex]->ValueType->RegCount;
-
-			regsToPush += regCount;
 
 			if (nextRegNum != val[elementIndex].RegNum)
 			{
 				emitRegMove(regsToPush, reg, lastElementIndex);
-				regsToPush = 0;
+				
 				reg += regsToPush;
+				regsToPush = regCount;
 				nextRegNum = val[elementIndex].RegNum + val[elementIndex].RegCount;
-				lastElementIndex = ++elementIndex;
+				lastElementIndex = elementIndex;
 			}
 			else
 			{
+				regsToPush += regCount;
 				nextRegNum = val[elementIndex].RegNum + val[elementIndex].RegCount;
-				++elementIndex;
 			}
-
 		}
 
 		// Emit move instructions on the last register
