@@ -725,7 +725,6 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 	}
 	assert(vectorElements > 0);
 
-	ExpEmit out(build, REGT_FLOAT, vectorDimensions);
 	ExpEmit* tempVal = (ExpEmit*)calloc(vectorElements, sizeof(ExpEmit));
 	ExpEmit* val = (ExpEmit*)calloc(vectorElements, sizeof(ExpEmit));
 
@@ -735,6 +734,28 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 		new(tempVal + i) ExpEmit(xyzw[i]->Emit(build));
 		new(val + i) ExpEmit(EmitKonst(build, tempVal[i]));
 	}
+
+	{
+		bool isContinuous = true;
+
+		for (int i = 1; i < vectorElements; ++i)
+		{
+			if (val[i - 1].RegNum + val[i - 1].RegCount != val[i].RegNum)
+			{
+				isContinuous = false;
+				break;
+			}
+		}
+
+		// all values are in continuous registers:
+		if (isContinuous)
+		{
+			val[0].RegCount = vectorDimensions;
+			return val[0];
+		}
+	}
+
+	ExpEmit out(build, REGT_FLOAT, vectorDimensions);
 
 	{
 		auto emitRegMove = [&](int regsToMove, int dstRegIndex, int srcRegIndex) {
@@ -751,6 +772,7 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 		int lastElementIndex = 0;
 		int reg = 0;
 
+		// Use larger MOVE OPs for any groups of registers that are continuous including those across individual xyzw[] elements
 		for (int elementIndex = 0; elementIndex < vectorElements; ++elementIndex)
 		{
 			int regCount = xyzw[elementIndex]->ValueType->RegCount;
@@ -778,7 +800,6 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 		}
 	}
 
-	// Destroy objects
 	for (int i = 0; i < vectorElements; ++i)
 	{
 		val[i].Free(build);
