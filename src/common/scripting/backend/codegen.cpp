@@ -723,10 +723,11 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 	{
 		if (e) vectorElements++;
 	}
+	assert(vectorElements > 0);
 
 	ExpEmit out(build, REGT_FLOAT, vectorDimensions);
-	ExpEmit* tempVal = (ExpEmit*)calloc(vectorDimensions, sizeof(ExpEmit));
-	ExpEmit* val = (ExpEmit*)calloc(vectorDimensions, sizeof(ExpEmit));
+	ExpEmit* tempVal = (ExpEmit*)calloc(vectorElements, sizeof(ExpEmit));
+	ExpEmit* val = (ExpEmit*)calloc(vectorElements, sizeof(ExpEmit));
 
 	// Init ExpEmit
 	for (int i = 0; i < vectorElements; ++i)
@@ -735,17 +736,48 @@ ExpEmit FxVectorValue::Emit(VMFunctionBuilder *build)
 		new(val + i) ExpEmit(EmitKonst(build, tempVal[i]));
 	}
 
-	// TODO handle cases where multiple registers are continous in memory
-	for (int elementIndex = 0, i = 0; i < vectorDimensions && xyzw[elementIndex];)
 	{
-		int regCount = xyzw[elementIndex]->ValueType->RegCount;
+		auto emitRegMove = [&](int regsToMove, int dstRegIndex, int srcRegIndex) {
+			assert(dstRegIndex < vectorDimensions);
+			assert(srcRegIndex < vectorDimensions);
+			assert(regsToMove > 0 && regsToMove <= 4);
+			build->Emit(regsToMove == 1 ? OP_MOVEF : OP_MOVEV2 + regsToMove - 2, out.RegNum + dstRegIndex, val[srcRegIndex].RegNum);
+			static_assert(OP_MOVEV2 + 1 == OP_MOVEV3);
+			static_assert(OP_MOVEV3 + 1 == OP_MOVEV4);
+		};
 
-		build->Emit(regCount == 1 ? OP_MOVEF : OP_MOVEV2 + regCount - 2, out.RegNum + i, val[elementIndex].RegNum);
-		static_assert(OP_MOVEV2 + 1 == OP_MOVEV3);
-		static_assert(OP_MOVEV3 + 1 == OP_MOVEV4);
+		int regsToPush = 0;
+		int nextRegNum = val[0].RegNum;
+		int lastElementIndex = 0;
+		int reg = 0;
 
-		i += regCount;
-		++elementIndex;
+		for (int elementIndex = 0; elementIndex < vectorElements;)
+		{
+			int regCount = xyzw[elementIndex]->ValueType->RegCount;
+
+			regsToPush += regCount;
+
+			if (nextRegNum != val[elementIndex].RegNum)
+			{
+				emitRegMove(regsToPush, reg, lastElementIndex);
+				regsToPush = 0;
+				reg += regsToPush;
+				nextRegNum = val[elementIndex].RegNum + val[elementIndex].RegCount;
+				lastElementIndex = ++elementIndex;
+			}
+			else
+			{
+				nextRegNum = val[elementIndex].RegNum + val[elementIndex].RegCount;
+				++elementIndex;
+			}
+
+		}
+
+		// Emit move instructions on the last register
+		if (regsToPush > 0)
+		{
+			emitRegMove(regsToPush, reg, lastElementIndex);
+		}
 	}
 
 	// Destroy objects
