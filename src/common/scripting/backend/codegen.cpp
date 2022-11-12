@@ -1798,7 +1798,7 @@ FxExpression *FxPlusSign::Resolve(FCompileContext& ctx)
 	CHECKRESOLVED();
 	SAFE_RESOLVE(Operand, ctx);
 
-	if (Operand->IsNumeric() || Operand->IsVector())
+	if (Operand->IsNumeric() || Operand->IsVector() || Operand->IsQuaternion())
 	{
 		FxExpression *e = Operand;
 		Operand = nullptr;
@@ -1852,7 +1852,7 @@ FxExpression *FxMinusSign::Resolve(FCompileContext& ctx)
 	CHECKRESOLVED();
 	SAFE_RESOLVE(Operand, ctx);
 
-	if (Operand->IsNumeric() || Operand->IsVector())
+	if (Operand->IsNumeric() || Operand->IsVector() || Operand->IsQuaternion())
 	{
 		if (Operand->isConstant())
 		{
@@ -2440,7 +2440,7 @@ FxExpression *FxAssign::Resolve(FCompileContext &ctx)
 			delete this;
 			return nullptr;
 		}
-		if (!Base->IsVector() && Base->ValueType->isStruct())
+		if (!Base->IsVector() && !Base->IsQuaternion() && Base->ValueType->isStruct())
 		{
 			ScriptPosition.Message(MSG_ERROR, "Struct assignment not implemented yet");
 			delete this;
@@ -2838,6 +2838,10 @@ FxExpression *FxAddSub::Resolve(FCompileContext& ctx)
 	{
 		ValueType = TypeTextureID;
 	}
+	else if (left->IsQuaternion() && right->IsQuaternion())
+	{
+		ValueType = left->ValueType;
+	}
 	else if (left->IsVector() && right->IsVector())
 	{
 		// a vector2 can be added to or subtracted from a vector 3 but it needs to be the right operand.
@@ -2943,6 +2947,13 @@ ExpEmit FxAddSub::Emit(VMFunctionBuilder *build)
 			}
 			return to;
 		}
+		else if (IsQuaternion())
+		{
+			assert(op1.RegType == REGT_FLOAT && op2.RegType == REGT_FLOAT);
+			assert(op1.RegCount == 4 && op2.RegCount == 4);
+			build->Emit(OP_ADDV4_RR, to.RegNum, op1.RegNum, op2.RegNum);
+			return to;
+		}
 		else if (ValueType->GetRegType() == REGT_FLOAT)
 		{
 			assert(op1.RegType == REGT_FLOAT && op2.RegType == REGT_FLOAT);
@@ -2969,6 +2980,13 @@ ExpEmit FxAddSub::Emit(VMFunctionBuilder *build)
 		{
 			assert(op1.RegType == REGT_FLOAT && op2.RegType == REGT_FLOAT);
 			build->Emit(right->IsVector4() ? OP_SUBV4_RR : right->IsVector3() ? OP_SUBV3_RR : OP_SUBV2_RR, to.RegNum, op1.RegNum, op2.RegNum);
+			return to;
+		}
+		else if (IsQuaternion())
+		{
+			assert(op1.RegType == REGT_FLOAT && op2.RegType == REGT_FLOAT);
+			assert(op1.RegCount == 4 && op2.RegCount == 4);
+			build->Emit(OP_SUBV4_RR, to.RegNum, op1.RegNum, op2.RegNum);
 			return to;
 		}
 		else if (ValueType->GetRegType() == REGT_FLOAT)
@@ -3640,7 +3658,7 @@ FxExpression *FxCompareEq::Resolve(FCompileContext& ctx)
 	}
 
 	// identical types are always comparable, if they can be placed in a register, so we can save most checks if this is the case.
-	if (left->ValueType != right->ValueType && !(left->IsVector2() && right->IsVector2()) && !(left->IsVector3() && right->IsVector3()) && !(left->IsVector4() && right->IsVector4()))
+	if (left->ValueType != right->ValueType && !(left->IsVector2() && right->IsVector2()) && !(left->IsVector3() && right->IsVector3()) && !(left->IsVector4() && right->IsVector4()) && !(left->IsQuaternion() && right->IsQuaternion()))
 	{
 		FxExpression *x;
 		if (left->IsNumeric() && right->ValueType == TypeString && (x = StringConstToChar(right)))
@@ -7083,7 +7101,7 @@ FxExpression *FxStructMember::Resolve(FCompileContext &ctx)
 			classx = nullptr;
 			return x;
 		}
-		else if (classx->ExprType == EFX_LocalVariable && classx->IsVector())	// vectors are a special case because they are held in registers
+		else if (classx->ExprType == EFX_LocalVariable && (classx->IsVector() || classx->IsQuaternion()))	// vectors are a special case because they are held in registers
 		{
 			// since this is a vector, all potential things that may get here are single float or an xy-vector.
 			auto locvar = static_cast<FxLocalVariable *>(classx);
@@ -7994,6 +8012,44 @@ FxExpression *FxFunctionCall::Resolve(FCompileContext& ctx)
 		}
 		break;
 
+	case NAME_FQuaternion:
+	case NAME_Quaternion:
+		if (CheckArgSize(MethodName, ArgList, 1, 4, ScriptPosition))
+		{
+			// Reuse vector expression
+			func = new FxVectorValue(
+				ArgList[0],
+				ArgList.Size() >= 2 ? ArgList[1] : nullptr,
+				ArgList.Size() >= 3 ? ArgList[2] : nullptr,
+				ArgList.Size() >= 4 ? ArgList[3] : nullptr,
+				ScriptPosition
+			);
+			ArgList.Clear();
+
+			delete this;
+			auto vector = func->Resolve(ctx);
+
+			if (vector)
+			{
+				int s = vector->ValueType->RegCount;
+				if (s < TypeQuaternion->RegCount)
+				{
+					ScriptPosition.Message(MSG_ERROR, "Insufficient arguments in initialization of %s, expected %d, got %d", MethodName.GetChars(), TypeQuaternion->RegCount, s);
+					delete vector;
+					return nullptr;
+				}
+				else if (s > TypeQuaternion->RegCount)
+				{
+					ScriptPosition.Message(MSG_ERROR, "Too many arguments in initialization of %s, expected %d, got %d", MethodName.GetChars(), TypeQuaternion->RegCount, s);
+					delete vector;
+					return nullptr;
+				}
+
+				vector->ValueType = TypeQuaternion;
+			}
+			return vector;
+		}
+		break;
 
 	default:
 		ScriptPosition.Message(MSG_ERROR, "Call to unknown function '%s'", MethodName.GetChars());
@@ -10874,6 +10930,7 @@ FxLocalVariableDeclaration::FxLocalVariableDeclaration(PType *type, FName name, 
 	if (type == TypeFVector2) type = TypeVector2;
 	else if (type == TypeFVector3) type = TypeVector3;
 	else if (type == TypeFVector4) type = TypeVector4;
+	else if (type == TypeFQuaternion) type = TypeQuaternion;
 
 	ValueType = type;
 	VarFlags = varflags;
