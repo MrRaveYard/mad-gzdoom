@@ -8012,8 +8012,8 @@ FxExpression *FxFunctionCall::Resolve(FCompileContext& ctx)
 		}
 		break;
 
-	case NAME_FQuaternion:
-	case NAME_Quaternion:
+	case NAME_FQuat:
+	case NAME_Quat:
 		if (CheckArgSize(MethodName, ArgList, 1, 4, ScriptPosition))
 		{
 			// Reuse vector expression

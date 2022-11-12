@@ -413,7 +413,7 @@ void PType::StaticInit()
 	TypeFVector4->isOrdered = true;
 
 
-	TypeQuaternion = new PStruct(NAME_Quaternion, nullptr);
+	TypeQuaternion = new PStruct(NAME_Quat, nullptr);
 	TypeQuaternion->AddField(NAME_X, TypeFloat64);
 	TypeQuaternion->AddField(NAME_Y, TypeFloat64);
 	TypeQuaternion->AddField(NAME_Z, TypeFloat64);
@@ -429,7 +429,7 @@ void PType::StaticInit()
 	TypeQuaternion->RegCount = 4;
 	TypeQuaternion->isOrdered = true;
 
-	TypeFQuaternion = new PStruct(NAME_FQuaternion, nullptr);
+	TypeFQuaternion = new PStruct(NAME_FQuat, nullptr);
 	TypeFQuaternion->AddField(NAME_X, TypeFloat32);
 	TypeFQuaternion->AddField(NAME_Y, TypeFloat32);
 	TypeFQuaternion->AddField(NAME_Z, TypeFloat32);
@@ -465,11 +465,11 @@ void PType::StaticInit()
 	Namespaces.GlobalNamespace->Symbols.AddSymbol(Create<PSymbolType>(NAME_Vector2, TypeVector2));
 	Namespaces.GlobalNamespace->Symbols.AddSymbol(Create<PSymbolType>(NAME_Vector3, TypeVector3));
 	Namespaces.GlobalNamespace->Symbols.AddSymbol(Create<PSymbolType>(NAME_Vector4, TypeVector4));
-	Namespaces.GlobalNamespace->Symbols.AddSymbol(Create<PSymbolType>(NAME_Quaternion, TypeQuaternion));
+	Namespaces.GlobalNamespace->Symbols.AddSymbol(Create<PSymbolType>(NAME_Quat, TypeQuaternion));
 	Namespaces.GlobalNamespace->Symbols.AddSymbol(Create<PSymbolType>(NAME_FVector2, TypeFVector2));
 	Namespaces.GlobalNamespace->Symbols.AddSymbol(Create<PSymbolType>(NAME_FVector3, TypeFVector3));
 	Namespaces.GlobalNamespace->Symbols.AddSymbol(Create<PSymbolType>(NAME_FVector4, TypeFVector4));
-	Namespaces.GlobalNamespace->Symbols.AddSymbol(Create<PSymbolType>(NAME_FQuaternion, TypeFQuaternion));
+	Namespaces.GlobalNamespace->Symbols.AddSymbol(Create<PSymbolType>(NAME_FQuat, TypeFQuaternion));
 }
 
 
