@@ -204,7 +204,7 @@ private:
 	public:
 	void RenderThings(subsector_t * sub, sector_t * sector);
 	void RenderParticles(subsector_t *sub, sector_t *front);
-	void DoSubsector(subsector_t * sub);
+	void DoSubsector(subsector_t * sub, bool drawSubsector);
 	int SetupLightsForOtherPlane(subsector_t * sub, FDynLightData &lightdata, const secplane_t *plane);
 	int CreateOtherPlaneVertices(subsector_t *sub, const secplane_t *plane);
 	void DrawPSprite(HUDSprite *huds, FRenderState &state);
@@ -237,7 +237,7 @@ public:
 	}
 
 	HWPortal * FindPortal(const void * src);
-	void RenderBSPNode(void *node);
+	void RenderBSPNode(void *node, bool drawSubsector);
 	void RenderBSP(void *node, bool drawpsprites);
 
 	static HWDrawInfo *StartDrawInfo(FLevelLocals *lev, HWDrawInfo *parent, FRenderViewpoint &parentvp, HWViewpointUniforms *uniforms);

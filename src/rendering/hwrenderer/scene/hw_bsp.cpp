@@ -617,7 +617,7 @@ void HWDrawInfo::RenderParticles(subsector_t *sub, sector_t *front)
 //
 //==========================================================================
 
-void HWDrawInfo::DoSubsector(subsector_t * sub)
+void HWDrawInfo::DoSubsector(subsector_t * sub, bool drawSubsector)
 {
 	sector_t * sector;
 	sector_t * fakesector;
@@ -629,7 +629,7 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 	}
 #endif
 
-	sector=sub->sector;
+	sector = sub->sector;
 	if (!sector) return;
 
 	// If the mapsections differ this subsector can't possibly be visible from the current view point
@@ -679,29 +679,32 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 		}
 	}
 
-	AddLines(sub, fakesector);
-
-	// BSP is traversed by subsector.
-	// A sector might have been split into several
-	//	subsectors during BSP building.
-	// Thus we check whether it was already added.
-	if (sector->validcount != validcount)
+	if (drawSubsector)
 	{
-		// Well, now it will be done.
-		sector->validcount = validcount;
-		sector->MoreFlags |= SECMF_DRAWN;
+		AddLines(sub, fakesector);
 
-		if (gl_render_things && (sector->touching_renderthings || sector->sectorportal_thinglist))
+		// BSP is traversed by subsector.
+		// A sector might have been split into several
+		//	subsectors during BSP building.
+		// Thus we check whether it was already added.
+		if (sector->validcount != validcount)
 		{
-			if (multithread)
+			// Well, now it will be done.
+			sector->validcount = validcount;
+			sector->MoreFlags |= SECMF_DRAWN;
+
+			if (gl_render_things && (sector->touching_renderthings || sector->sectorportal_thinglist))
 			{
-				jobQueue.AddJob(RenderJob::SpriteJob, sub, nullptr);
-			}
-			else
-			{
-				SetupSprite.Clock();
-				RenderThings(sub, fakesector);
-				SetupSprite.Unclock();
+				if (multithread)
+				{
+					jobQueue.AddJob(RenderJob::SpriteJob, sub, nullptr);
+				}
+				else
+				{
+					SetupSprite.Clock();
+					RenderThings(sub, fakesector);
+					SetupSprite.Unclock();
+				}
 			}
 		}
 	}
@@ -798,13 +801,16 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 //
 //==========================================================================
 
-void HWDrawInfo::RenderBSPNode (void *node)
+CVAR(Int, gl_dist, 1024, CVAR_NOSAVE);
+
+void HWDrawInfo::RenderBSPNode (void *node, bool drawSubsector)
 {
 	if (Level->nodes.Size() == 0)
 	{
-		DoSubsector (&Level->subsectors[0]);
+		DoSubsector (&Level->subsectors[0], true);
 		return;
 	}
+
 	while (!((size_t)node & 1))  // Keep going until found a subsector
 	{
 		node_t *bsp = (node_t *)node;
@@ -812,8 +818,11 @@ void HWDrawInfo::RenderBSPNode (void *node)
 		// Decide which side the view point is on.
 		int side = R_PointOnSide(viewx, viewy, bsp);
 
+		// If the line is too far away, then it's not meant to be
+		drawSubsector = R_LineDist(viewx, viewy, bsp) < gl_dist;
+
 		// Recursively divide front space (toward the viewer).
-		RenderBSPNode (bsp->children[side]);
+		RenderBSPNode (bsp->children[side], drawSubsector);
 
 		// Possibly divide back space (away from the viewer).
 		side ^= 1;
@@ -825,9 +834,15 @@ void HWDrawInfo::RenderBSPNode (void *node)
 				return;
 		}
 
+		if (!drawSubsector)
+		{
+			return;
+		}
+
 		node = bsp->children[side];
 	}
-	DoSubsector ((subsector_t *)((uint8_t *)node - 1));
+
+	DoSubsector ((subsector_t *)((uint8_t *)node - 1), drawSubsector);
 }
 
 void HWDrawInfo::RenderBSP(void *node, bool drawpsprites)
@@ -847,7 +862,7 @@ void HWDrawInfo::RenderBSP(void *node, bool drawpsprites)
 		auto future = renderPool.push([&](int id) {
 			WorkerThread();
 		});
-		RenderBSPNode(node);
+		RenderBSPNode(node, true);
 
 		jobQueue.AddJob(RenderJob::TerminateJob, nullptr, nullptr);
 		Bsp.Unclock();
@@ -857,7 +872,7 @@ void HWDrawInfo::RenderBSP(void *node, bool drawpsprites)
 	}
 	else
 	{
-		RenderBSPNode(node);
+		RenderBSPNode(node, true);
 		Bsp.Unclock();
 	}
 	// Process all the sprites on the current portal's back side which touch the portal.

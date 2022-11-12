@@ -104,6 +104,27 @@ inline int R_PointOnSide(const DVector2 &pos, const node_t *node)
 	return DMulScale(FLOAT2FIXED(pos.Y) - node->y, node->dx, node->x - FLOAT2FIXED(pos.X), node->dy, 32) > 0;
 }
 
+inline void R_GetLine(double x1, double y1, double x2, double y2, double& a, double& b, double& c)
+{
+	a = y1 - y2;
+	b = x2 - x1;
+	c = x1 * y2 - x2 * y1;
+}
+
+inline double R_LineDist(double pct1X, double pct1Y, double pct2X, double pct2Y, double pct3X, double pct3Y)
+{
+	double a, b, c;
+	R_GetLine(pct2X, pct2Y, pct3X, pct3Y, a, b, c);
+	return abs(a * pct1X + b * pct1Y + c) / sqrt(a * a + b * b);
+}
+
+inline double R_LineDist(fixed_t x, fixed_t y, const node_t* node)
+{
+	return R_LineDist(FIXED2FLOAT(x), FIXED2FLOAT(y), FIXED2FLOAT(node->x), FIXED2FLOAT(node->y), FIXED2FLOAT(node->x + node->dx), FIXED2FLOAT(node->y + node->dy));
+}
+
+
+
 // Used for interpolation waypoints.
 struct DVector3a
 {
