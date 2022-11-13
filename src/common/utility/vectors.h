@@ -724,6 +724,11 @@ struct TVector4
 	{
 	}
 
+	TVector4(const vec_t v[4])
+		: TVector4(v[0], v[1], v[2], v[3])
+	{
+	}
+
 	void Zero()
 	{
 		Z = Y = X = W = 0;

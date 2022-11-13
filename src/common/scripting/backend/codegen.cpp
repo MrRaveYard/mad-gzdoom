@@ -8384,9 +8384,9 @@ FxExpression *FxMemberFunctionCall::Resolve(FCompileContext& ctx)
 			delete this;
 			return x->Resolve(ctx);
 		}
+
+		ValueType = TypeQuaternionStruct;
 	}
-
-
 	else if (Self->ValueType == TypeString)
 	{
 		if (MethodName == NAME_Length)	// This is an intrinsic because a dedicated opcode exists for it.

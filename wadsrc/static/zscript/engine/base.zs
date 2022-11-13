@@ -892,3 +892,15 @@ struct Translation version("2.4")
 	}
 }
 
+// Convenient way to attach functions to Quat
+struct QuatStruct native
+{	
+	native static Quat FromEuler(double yaw, double pitch, double roll);
+	native static Quat AxisAngle(Vector3 xyz, double angle);
+	native Quat SLerp(Quat to, double f);
+	native Quat NLerp(Quat to, double f);
+	// native double Length();
+	// native Quat Unit();
+	// TODO native static void Multiply(out QuatStruct dst, QuatStruct a, QuatStruct b);
+
+}
