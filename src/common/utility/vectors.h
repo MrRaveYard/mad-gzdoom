@@ -860,11 +860,31 @@ struct TVector4
 
 	friend TVector4 operator* (const TVector4& v1, const TVector4& v2)
 	{
-		return TVector4(v2.W * v1.X + v2.X * v1.W + v2.Y * v1.Z - v1.Z * v1.Y,
+		return TVector4(
+			v2.W * v1.X + v2.X * v1.W + v2.Y * v1.Z - v1.Z * v1.Y,
 			v2.W * v1.Y + v2.Y * v1.W + v2.Z * v1.X - v2.X * v1.Z,
 			v2.W * v1.Z + v2.Z * v1.W + v2.X * v1.Y - v2.Y * v1.X,
 			v2.W * v1.W - v2.X * v1.X - v2.Y * v1.Y - v2.Z * v1.Z
 		);
+	}
+
+	// [RaveYard]: This should be correct Quaternion multiplication.
+	static TVector4 MulQQ(const TVector4& a, const TVector4& b)
+	{
+		return TVector4(
+			a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,  // x
+			a.W * b.Y - a.X * b.Z + a.Y * b.W + a.Z * b.X,  // y
+			a.W * b.Z + a.X * b.Y - a.Y * b.X + a.Z * b.W,  // z
+			a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z  // w
+		);
+	}
+
+	// Multiply as Quaternion against Vector3
+	friend TVector3<vec_t> operator* (const TVector4<vec_t>& q, const TVector3<vec_t>& v)
+	{
+		auto r = MulQQ(TVector4({v.X, v.Y, v.Z, 0}), TVector4({-q.X, -q.Y, -q.Z, q.W}));
+		r = MulQQ(q, r);
+		return TVector3(r.X, r.Y, r.Z);
 	}
 
 	// Scalar division

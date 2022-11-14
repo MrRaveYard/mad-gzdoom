@@ -1887,7 +1887,39 @@ static int ExecScriptFunc(VMFrameStack *stack, VMReturn *ret, int numret)
 		ASSERTF(B+3); ASSERTKF(C+3);
 		fcp = &konstf[C];
 		goto Do_EQV4;
+	OP(MULQV3_RR):
+		ASSERTF(a + 2); ASSERTF(B + 3); ASSERTF(C + 2);
+		{
+			//const DVector4 quat(reg.f[B], reg.f[B + 1], reg.f[B + 2], reg.f[B + 3]);
+			//const DVector3 vec(reg.f[C], reg.f[C + 1], reg.f[C + 2]);
+			//DVector3 r = quat * vec;
+			//reg.f[a] = r.X;
+			//reg.f[a + 1] = r.Y;
+			//reg.f[a + 2] = r.Z;
 
+			const DVector4& quat = reinterpret_cast<DVector4&>(reg.f[B]);
+			const DVector3& vec =  reinterpret_cast<DVector3&>(reg.f[C]);
+			DVector3* dvec = reinterpret_cast<DVector3*>(&reg.f[A]);
+			*dvec = quat * vec;
+		}
+		NEXTOP;
+	OP(MULQQ_RR):
+		ASSERTF(a + 3); ASSERTF(B + 3); ASSERTF(C + 3);
+		{
+			//const DVector4 quat(reg.f[B], reg.f[B + 1], reg.f[B + 2], reg.f[B + 3]);
+			//const DVector4 quat(reg.f[C], reg.f[C + 1], reg.f[C + 2], reg.f[C + 3]);
+			//DVector4 r = quat * vec;
+			//reg.f[a] = r.X;
+			//reg.f[a + 1] = r.Y;
+			//reg.f[a + 2] = r.Z;
+			//reg.f[a + 3] = r.W;
+
+			const DVector4& q1 = reinterpret_cast<DVector4&>(reg.f[B]);
+			const DVector4& q2 = reinterpret_cast<DVector4&>(reg.f[C]);
+			DVector4& qr = reinterpret_cast<DVector4&>(reg.f[A]);
+			qr = DVector4::MulQQ(q1, q2);
+		}
+		NEXTOP;
 	OP(ADDA_RR):
 		ASSERTA(a); ASSERTA(B); ASSERTD(C);
 		c = reg.d[C];

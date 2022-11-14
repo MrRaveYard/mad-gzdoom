@@ -1139,9 +1139,9 @@ DEFINE_ACTION_FUNCTION(_QuatStruct, FromEuler)
 	PARAM_FLOAT(pitch);
 	PARAM_FLOAT(roll);
 
-	//I_Error("Quat.FromEuler not implemented");
+	I_Error("Quat.FromEuler not implemented");
 	ret->SetVector4({0, 1, 2, 3}); // X Y Z W
-	return 4;
+	return 1;
 }
 
 DEFINE_ACTION_FUNCTION(_QuatStruct, AxisAngle)
@@ -1152,31 +1152,43 @@ DEFINE_ACTION_FUNCTION(_QuatStruct, AxisAngle)
 	PARAM_FLOAT(z);
 	PARAM_FLOAT(angle);
 
-	//I_Error("Quat.AxisAngle not implemented");
-	ret->SetVector4({0, 1, 2, 3}); // X Y Z W
-	return 4;
+	I_Error("Quat.AxisAngle not implemented");
+	ret->SetVector4({ 0, 1, 2, 3 }); // X Y Z W
+	return 1;
 }
 
 DEFINE_ACTION_FUNCTION(_QuatStruct, Nlerp)
 {
 	PARAM_PROLOGUE;
-	PARAM_POINTER(self, DVector4);
-	PARAM_POINTER(other, DVector4);
+	PARAM_FLOAT(ax);
+	PARAM_FLOAT(ay);
+	PARAM_FLOAT(az);
+	PARAM_FLOAT(aw);
+	PARAM_FLOAT(bx);
+	PARAM_FLOAT(by);
+	PARAM_FLOAT(bz);
+	PARAM_FLOAT(bw);
 	PARAM_FLOAT(f);
-	
-	// I_Error("Quat.NLerp not implemented");
-	ret->SetVector4(*self); // X Y Z W
-	return 4;
+
+	I_Error("Quat.NLerp not implemented");
+	ret->SetVector4({ 0, 1, 2, 3 }); // X Y Z W
+	return 1;
 }
 
 DEFINE_ACTION_FUNCTION(_QuatStruct, Slerp)
 {
 	PARAM_PROLOGUE;
-	PARAM_POINTER(self, DVector4);
-	PARAM_POINTER(other, DVector4);
+	PARAM_FLOAT(ax);
+	PARAM_FLOAT(ay);
+	PARAM_FLOAT(az);
+	PARAM_FLOAT(aw);
+	PARAM_FLOAT(bx);
+	PARAM_FLOAT(by);
+	PARAM_FLOAT(bz);
+	PARAM_FLOAT(bw);
 	PARAM_FLOAT(f);
 
-	// I_Error("Quat.SLerp not implemented");
-	ret->SetVector4(*self); // X Y Z W
-	return 4;
+	I_Error("Quat.SLerp not implemented");
+	ret->SetVector4({ 0, 1, 2, 3 }); // X Y Z W
+	return 1;
 }

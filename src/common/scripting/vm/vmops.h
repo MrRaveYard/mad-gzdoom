@@ -279,10 +279,8 @@ xx(EQV4_R,		beqv4,		CVRR,	NOP,	0, 0)			// if ((vB == vkC) != A) then pc++ (inexa
 xx(EQV4_K,		beqv4,		CVRK,	NOP,	0, 0)			// this will never be used.
 
 // Quaternion math
-// xx(MULQQ_RR,	mulqq,		RVRVRF, NOP,	0, 0)		// qA = qB * qC
-// xx(MULQV_RR,	mulqv,		RVRVRF, NOP,	0, 0)		// qA = qB * vec3
-// xx(NLERPQ_RR,	nlerp,		RVRVRF, NOP,	0, 0)		// qA = nlerp(qB, qC, f)
-// xx(SLERPQ_RR,	slerp,		RVRVRF, NOP,	0, 0)		// qA = slerp(qB, qC, f)
+xx(MULQQ_RR,	mulqq,		RVRVRV, NOP,	0, 0)		// qA = qB * qC
+xx(MULQV3_RR,	mulqv3,		RVRVRV, NOP,	0, 0)		// qA = qB * vC
 
 // Pointer math.
 xx(ADDA_RR,		add,	RPRPRI,		NOP,	0, 0)		// pA = pB + dkC
