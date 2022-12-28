@@ -119,6 +119,8 @@ struct FDepthBiasState
 	}
 };
 
+struct FFlatVertex;
+
 enum EPassType
 {
 	NORMAL_PASS,
@@ -714,6 +716,9 @@ public:
 	}
 
 	// API-dependent render interface
+
+	// Vertices
+	virtual std::pair<FFlatVertex*, unsigned int> AllocVertices(unsigned int count);
 
 	// Draw commands
 	virtual void ClearScreen() = 0;
