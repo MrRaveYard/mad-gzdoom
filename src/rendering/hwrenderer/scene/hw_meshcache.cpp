@@ -95,10 +95,8 @@ void HWMeshCache::Update(FRenderViewpoint& vp)
 			for (int i = 0, count = sector->subsectorcount; i < count; i++)
 			{
 				subsector_t* subsector = sector->subsectors[i];
-				if (seenSections.find(subsector->section) == seenSections.end())
+				if (seenSections.insert(subsector->section).second)
 				{
-					seenSections.insert(subsector->section);
-
 					HWFlat flat;
 					flat.section = subsector->section;
 					sector_t* front = hw_FakeFlat(subsector->render_sector, area_default, false);
