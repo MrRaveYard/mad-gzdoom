@@ -457,12 +457,15 @@ void HWDrawInfo::CreateScene(bool drawpsprites)
 	{
 		if (gl_render_things)
 		{
+			SetupSprite.Clock();
 			for (auto& t : Level->subsectors)
 			{
 				RenderThings(&t, t.sector);
+				RenderParticles(&t, t.sector);
 			}
+			PreparePlayerSprites(Viewpoint.sector, in_area);
+			SetupSprite.Unclock();
 		}
-		PreparePlayerSprites(Viewpoint.sector, in_area);
 	}
 	else
 	{
