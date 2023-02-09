@@ -64,6 +64,8 @@ CVAR(Bool, gl_coronas, true, CVAR_ARCHIVE);
 
 CVAR(Bool, gl_meshcache, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 
+EXTERN_CVAR(Bool, gl_render_things)
+
 sector_t * hw_FakeFlat(sector_t * sec, sector_t * dest, area_t in_area, bool back);
 
 //==========================================================================
@@ -451,9 +453,21 @@ void HWDrawInfo::CreateScene(bool drawpsprites)
 	screen->mLights->Map();
 	screen->mBones->Map();
 
-	if (!gl_meshcache)
+	if (gl_meshcache)
+	{
+		if (gl_render_things)
+		{
+			for (auto& t : Level->subsectors)
+			{
+				RenderThings(&t, t.sector);
+			}
+		}
+		PreparePlayerSprites(Viewpoint.sector, in_area);
+	}
+	else
+	{
 		RenderBSP(Level->HeadNode(), drawpsprites);
-
+	}
 	// And now the crappy hacks that have to be done to avoid rendering anomalies.
 	// These cannot be multithreaded when the time comes because all these depend
 	// on the global 'validcount' variable.
