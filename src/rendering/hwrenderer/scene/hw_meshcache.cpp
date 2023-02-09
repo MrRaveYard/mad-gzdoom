@@ -139,7 +139,7 @@ void HWMeshCache::Update(FRenderViewpoint& vp)
 		Opaque = state.Create();
 
 		// Part 2: masked geometry. This is set up so that only pixels with alpha>gl_mask_threshold will show
-		state.AlphaFunc(Alpha_GEqual, gl_mask_threshold);
+		/*state.AlphaFunc(Alpha_GEqual, gl_mask_threshold);
 		di->drawlists[GLDL_MASKEDWALLS].DrawWalls(di, state, false);
 		di->drawlists[GLDL_MASKEDFLATS].DrawFlats(di, state, false);
 		Translucent = state.Create();
@@ -155,7 +155,7 @@ void HWMeshCache::Update(FRenderViewpoint& vp)
 		else
 		{
 			TranslucentDepthBiased.reset();
-		}
+		}*/
 
 		di->MeshBuilding = false;
 		di->EndDrawInfo();
