@@ -6,6 +6,7 @@
 #include "hw_fakeflat.h"
 #include "hw_vertexbuilder.h"
 #include "g_levellocals.h"
+#include "c_dispatch.h"
 #include <unordered_set>
 
 EXTERN_CVAR(Bool, gl_texture)
@@ -13,6 +14,11 @@ EXTERN_CVAR(Float, gl_mask_threshold)
 EXTERN_CVAR(Bool, gl_meshcache)
 
 HWMeshCache meshcache;
+
+CCMD(gl_clearmeshcache)
+{
+	meshcache.Clear();
+}
 
 void HWMeshCache::Clear()
 {
