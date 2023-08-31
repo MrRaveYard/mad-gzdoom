@@ -3210,10 +3210,18 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 	SpawnThings(position);
 
 	// Load and link lightmaps - must be done after P_Spawn3DFloors (and SpawnThings? Potentially for baking static model actors?)
+#if 0
 	if (!ForceNodeBuild)
 	{
 		LoadLightmap(map);
 	}
+#endif
+	Level->levelMesh = new DoomLevelMesh(*Level);
+	InitLightmap(map);
+
+	screen->GenerateLightmap(Level->LMTextureData, Level->LMTextureSize, *Level->levelMesh);
+
+	screen->InitLightmap(Level->LMTextureSize, Level->LMTextureCount, Level->LMTextureData);
 
 	for (int i = 0; i < MAXPLAYERS; ++i)
 	{
@@ -3251,8 +3259,6 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 	CreateVBO(*screen->RenderState(0), Level->sectors);
 	meshcache.Clear();
 
-	screen->InitLightmap(Level->LMTextureSize, Level->LMTextureCount, Level->LMTextureData);
-
 	for (auto &sec : Level->sectors)
 	{
 		P_Recalculate3DFloors(&sec);
@@ -3268,7 +3274,6 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 		Level->FinalizePortals();	// finalize line portals after polyobjects have been initialized. This info is needed for properly flagging them.
 
 	Level->aabbTree = new DoomLevelAABBTree(Level);
-	Level->levelMesh = new DoomLevelMesh(*Level);
 }
 
 //==========================================================================
@@ -3277,16 +3282,17 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 //
 //==========================================================================
 
+
 void MapLoader::SetSubsectorLightmap(const LightmapSurface &surface)
 {
 	if (!surface.ControlSector)
 	{
-		int index = surface.Type == ST_CEILING ? 1 : 0;
+		int index = surface.Type == hwrenderer::ST_CEILING ? 1 : 0;
 		surface.Subsector->lightmap[index][0] = surface;
 	}
 	else
 	{
-		int index = surface.Type == ST_CEILING ? 0 : 1;
+		int index = surface.Type == hwrenderer::ST_CEILING ? 0 : 1;
 		const auto &ffloors = surface.Subsector->sector->e->XFloor.ffloors;
 		for (unsigned int i = 0; i < ffloors.Size(); i++)
 		{
@@ -3302,16 +3308,16 @@ void MapLoader::SetSideLightmap(const LightmapSurface &surface)
 {
 	if (!surface.ControlSector)
 	{
-		if (surface.Type == ST_UPPERWALL)
+		if (surface.Type == hwrenderer::ST_UPPERSIDE)
 		{
 			surface.Side->lightmap[0] = surface;
 		}
-		else if (surface.Type == ST_MIDDLEWALL)
+		else if (surface.Type == hwrenderer::ST_MIDDLESIDE)
 		{
 			surface.Side->lightmap[1] = surface;
 			surface.Side->lightmap[2] = surface;
 		}
-		else if (surface.Type == ST_LOWERWALL)
+		else if (surface.Type == hwrenderer::ST_LOWERSIDE)
 		{
 			surface.Side->lightmap[3] = surface;
 		}
@@ -3329,14 +3335,192 @@ void MapLoader::SetSideLightmap(const LightmapSurface &surface)
 	}
 }
 
-void MapLoader::LoadLightmap(MapData *map)
+#include "vulkan/accelstructs/halffloat.h"
+
+void MapLoader::GenerateLightmap(const DoomLevelMesh& mesh, int atlasPages, int atlasWidth, int atlasHeight)
+{
+	Level->LMTextureData.Resize(atlasWidth * atlasHeight * 3 * atlasPages);
+
+	uint16_t* ptr = Level->LMTextureData.Data();
+
+	for (int i = 0; i < atlasPages; ++i)
+	{
+		for (int y = 0; y < atlasWidth; ++y)
+		{
+			for (int x = 0; x < atlasHeight; ++x)
+			{
+				/**(ptr++) = floatToHalf(float(x) / width);
+				*(ptr++) = floatToHalf(float(y) / height);
+				*(ptr++) = floatToHalf((x + y) % 2 == 0 ? 1.0f : 0.0f);*/
+				switch (i % 3)
+				{
+				case 0:
+					*(ptr++) = floatToHalf(1.0f);
+					*(ptr++) = floatToHalf(0.0f);
+					*(ptr++) = floatToHalf(0.0f);
+					break;
+				case 1:
+					*(ptr++) = floatToHalf(0.0f);
+					*(ptr++) = floatToHalf(1.0f);
+					*(ptr++) = floatToHalf(0.0f);
+					break;
+				case 2:
+					*(ptr++) = floatToHalf(0.0f);
+					*(ptr++) = floatToHalf(0.0f);
+					*(ptr++) = floatToHalf(1.0f);
+					break;
+				}
+			}
+		}
+	}
+
+	auto get_xy = [&](int page, int x, int y) -> uint16_t*
+	{
+		return Level->LMTextureData.Data() + ((y * atlasWidth) + x + (atlasHeight * atlasWidth * page)) * 3;
+	};
+
+	//#if 0
+	srand(1337);
+	for (auto& surface : mesh.Surfaces)
+	{
+		float r;
+		float g;
+		float b;
+
+		r = rand() % 32 / 32.0f;
+		g = rand() % 32 / 32.0f;
+		b = rand() % 32 / 32.0f;
+
+		for (int y = 0; y <= surface.texHeight; ++y)
+		{
+			for (int x = 0; x <= surface.texWidth; ++x)
+			{
+				auto ptr = get_xy(surface.atlasPageIndex, surface.atlasX + x, surface.atlasY + y);
+
+				ptr[0] = floatToHalf(r);
+				ptr[1] = floatToHalf(g);
+				ptr[2] = floatToHalf(b);
+
+				if (x % 4 == 0 || y % 4 == 0)
+				{
+					ptr[0] = floatToHalf(0.0f);
+					ptr[1] = floatToHalf(0.0f);
+					ptr[2] = floatToHalf(0.0f);
+				}
+
+				/*if (Level->levelMesh->TraceSky(surface.worldOrigin - surface.worldStepX * 0.5f - surface.worldStepY * 0.5f + surface.worldStepX * x + surface.worldStepY * y + FVector3(surface.plane.Normal()), Level->SunDirection, 32000.0f))
+				{
+					ptr[0] = floatToHalf(Level->SunColor.X);
+					ptr[1] = floatToHalf(Level->SunColor.Y);
+					ptr[2] = floatToHalf(Level->SunColor.Z);
+				}
+				else
+				{
+					ptr[0] = 0;
+					ptr[1] = 0;
+					ptr[2] = 0;
+				}*/
+			}
+		}
+	}
+}
+
+void MapLoader::BindLightmapSurfacesToGeometry()
+{
+	// Allocate room for all surfaces
+
+	unsigned int allSurfaces = 0;
+
+	for (unsigned int i = 0; i < Level->sides.Size(); i++)
+		allSurfaces += 4 + Level->sides[i].sector->e->XFloor.ffloors.Size();
+
+	for (unsigned int i = 0; i < Level->subsectors.Size(); i++)
+		allSurfaces += 2 + Level->subsectors[i].sector->e->XFloor.ffloors.Size() * 2;
+
+	Level->LMSurfaces.Resize(allSurfaces);
+	memset(&Level->LMSurfaces[0], 0, sizeof(LightmapSurface) * allSurfaces);
+
+	// Link the surfaces to sectors, sides and their 3D floors
+
+	unsigned int offset = 0;
+	for (unsigned int i = 0; i < Level->sides.Size(); i++)
+	{
+		auto& side = Level->sides[i];
+		side.lightmap = &Level->LMSurfaces[offset];
+		offset += 4 + side.sector->e->XFloor.ffloors.Size();
+	}
+	for (unsigned int i = 0; i < Level->subsectors.Size(); i++)
+	{
+		auto& subsector = Level->subsectors[i];
+		unsigned int count = 1 + subsector.sector->e->XFloor.ffloors.Size();
+		subsector.lightmap[0] = &Level->LMSurfaces[offset];
+		subsector.lightmap[1] = &Level->LMSurfaces[offset + count];
+		offset += count * 2;
+	}
+
+	// Copy and build properties
+	size_t index = 0;
+	for (auto& surface : Level->levelMesh->Surfaces)
+	{
+		LightmapSurface l;
+		memset(&l, 0, sizeof(LightmapSurface));
+
+		l.ControlSector = (sector_t*)surface.controlSector;
+		l.Type = surface.type;
+		l.LightmapNum = 0;
+
+		l.TexCoords = (float*) & Level->levelMesh->LightmapUvs[surface.startUvIndex];
+
+		l.LightmapNum = surface.atlasPageIndex;
+
+		if (surface.type == hwrenderer::ST_FLOOR || surface.type == hwrenderer::ST_CEILING)
+		{
+			l.Subsector = &Level->subsectors[surface.typeIndex];
+			if (l.Subsector->firstline && l.Subsector->firstline->sidedef)
+				l.Subsector->firstline->sidedef->sector->HasLightmaps = true;
+			SetSubsectorLightmap(l);
+		}
+		else
+		{
+			l.Side = &Level->sides[surface.typeIndex];
+			SetSideLightmap(l);
+		}
+	}
+
+}
+
+void MapLoader::InitLightmap(MapData* map)
 {
 	// We have to reset everything as FLevelLocals is recycled between maps
 	Level->LMTexCoords.Reset();
 	Level->LMSurfaces.Reset();
 	Level->LMTextureData.Reset();
+
+	Level->LMTextureSize = 1024; // TODO cvar
+
+	// TODO read from ZDRayInfoThing
+	Level->SunColor = FVector3(1.f, 1.f, 1.f);
+	Level->SunDirection = FVector3(0.45f, 0.3f, 0.9f);
+
+	Level->levelMesh->SunColor = Level->SunColor; // TODO keep only one copy?
+	Level->levelMesh->SunDirection = Level->SunDirection;
+
+	Level->LMTextureCount = Level->levelMesh->SetupLightmapUvs(Level->LMTextureSize);
+
+	GenerateLightmap(*Level->levelMesh, Level->LMTextureCount, Level->LMTextureSize, Level->LMTextureSize);
+	BindLightmapSurfacesToGeometry();
+}
+
+#if 0
+void MapLoader::LoadLightmap(MapData *map)
+{
+	Level->LMTexCoords.Reset();
+	Level->LMSurfaces.Reset();
+	Level->LMTextureData.Reset();
 	Level->LMTextureCount = 0;
 	Level->LMTextureSize = 0;
+
+	// We have to reset everything as FLevelLocals is recycled between maps
 
 	//if (!Args->CheckParm("-enablelightmaps"))
 	//	return;		// this feature is still too early WIP to allow general access
@@ -3463,3 +3647,4 @@ void MapLoader::LoadLightmap(MapData *map)
 		data[i] += data[i - 1];
 #endif
 }
+#endif
