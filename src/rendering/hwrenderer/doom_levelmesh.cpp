@@ -27,6 +27,7 @@ DoomLevelMesh::DoomLevelMesh(FLevelLocals &doomMap)
 {
 	SunColor = doomMap.SunColor; // TODO keep only one copy?
 	SunDirection = doomMap.SunDirection;
+	LightmapSampleDistance = doomMap.LightmapSampleDistance;
 
 	for (unsigned int i = 0; i < doomMap.sides.Size(); i++)
 	{
@@ -287,6 +288,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 		surf.Type = ST_MIDDLESIDE;
 		surf.typeIndex = typeIndex;
 		surf.bSky = front->GetTexture(sector_t::floor) == skyflatnum || front->GetTexture(sector_t::ceiling) == skyflatnum;
+		surf.sampleDimension = side->textures[side_t::mid].LightmapSampleDistance;
 
 		FVector3 verts[4];
 		verts[0].X = verts[2].X = v1.X;
@@ -334,6 +336,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 			surf.typeIndex = typeIndex;
 			surf.ControlSector = xfloor->model;
 			surf.bSky = false;
+			surf.sampleDimension = side->textures[side_t::mid].LightmapSampleDistance;
 
 			FVector3 verts[4];
 			verts[0].X = verts[2].X = v2.X;
@@ -394,6 +397,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 				surf.Type = ST_LOWERSIDE;
 				surf.typeIndex = typeIndex;
 				surf.bSky = false;
+				surf.sampleDimension = side->textures[side_t::bottom].LightmapSampleDistance;
 				surf.ControlSector = nullptr;
 
 				Surfaces.Push(surf);
@@ -432,6 +436,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 				surf.Type = ST_UPPERSIDE;
 				surf.typeIndex = typeIndex;
 				surf.bSky = bSky;
+				surf.sampleDimension = side->textures[side_t::top].LightmapSampleDistance;
 				surf.ControlSector = nullptr;
 
 				Surfaces.Push(surf);
@@ -469,6 +474,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 		surf.plane = ToPlane(verts[0], verts[1], verts[2]);
 		surf.Type = ST_MIDDLESIDE;
 		surf.typeIndex = typeIndex;
+		surf.sampleDimension = side->textures[side_t::mid].LightmapSampleDistance;
 		surf.ControlSector = nullptr;
 
 		Surfaces.Push(surf);
@@ -508,6 +514,7 @@ void DoomLevelMesh::CreateFloorSurface(FLevelLocals &doomMap, subsector_t *sub, 
 
 	surf.Type = ST_FLOOR;
 	surf.typeIndex = typeIndex;
+	surf.sampleDimension = sector->planes[sector_t::floor].LightmapSampleDistance;
 	surf.ControlSector = is3DFloor ? sector : nullptr;
 	surf.plane = FVector4((float)plane.Normal().X, (float)plane.Normal().Y, (float)plane.Normal().Z, -(float)plane.D);
 
@@ -547,6 +554,7 @@ void DoomLevelMesh::CreateCeilingSurface(FLevelLocals &doomMap, subsector_t *sub
 
 	surf.Type = ST_CEILING;
 	surf.typeIndex = typeIndex;
+	surf.sampleDimension = sector->planes[sector_t::ceiling].LightmapSampleDistance;
 	surf.ControlSector = is3DFloor ? sector : nullptr;
 	surf.plane = FVector4((float)plane.Normal().X, (float)plane.Normal().Y, (float)plane.Normal().Z, -(float)plane.D);
 
@@ -883,9 +891,19 @@ void DoomLevelMesh::BuildSurfaceParams(int lightMapTextureWidth, int lightMapTex
 
 	if (surface.sampleDimension <= 0)
 	{
-		surface.sampleDimension = 16;
+		surface.sampleDimension = LightmapSampleDistance;
 	}
-	//surface->sampleDimension = Math::RoundPowerOfTwo(surface->sampleDimension);
+
+	{
+		// Round to nearest power of two
+		uint32_t n = uint16_t(surface.sampleDimension);
+		n |= n >> 1;
+		n |= n >> 2;
+		n |= n >> 4;
+		n |= n >> 8;
+		++n;
+		surface.sampleDimension = uint16_t(n) ? uint16_t(n) : uint16_t(0xFFFF);
+	}
 
 	// round off dimensions
 	for (int i = 0; i < 3; i++)
