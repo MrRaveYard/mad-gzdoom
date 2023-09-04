@@ -239,8 +239,8 @@ static int CreateIndexedSectorVerticesLM(FRenderState& renderstate, sector_t* se
 	for (i = 0, pos = 0; i < sec->subsectorcount; i++)
 	{
 		subsector_t* sub = sec->subsectors[i];
-		LightmapSurface* lightmap = &sub->lightmap[h][lightmapIndex];
-		if (lightmap->Type != ST_NULL)
+		DoomLevelMeshSurface* lightmap = sub->lightmap[h][lightmapIndex];
+		if (lightmap->Type != ST_UNKNOWN)
 		{
 			float* luvs = lightmap->TexCoords;
 			int lindex = lightmap->LightmapNum;

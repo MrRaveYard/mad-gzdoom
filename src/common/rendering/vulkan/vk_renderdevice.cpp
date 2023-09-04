@@ -43,6 +43,7 @@
 #include "vulkan/vk_renderstate.h"
 #include "vulkan/vk_postprocess.h"
 #include "vulkan/accelstructs/vk_raytrace.h"
+#include "vulkan/accelstructs/vk_lightmap.h"
 #include "vulkan/pipelines/vk_renderpass.h"
 #include "vulkan/descriptorsets/vk_descriptorset.h"
 #include "vulkan/shaders/vk_shader.h"
@@ -181,6 +182,7 @@ void VulkanRenderDevice::InitializeState()
 	mDescriptorSetManager.reset(new VkDescriptorSetManager(this));
 	mRenderPassManager.reset(new VkRenderPassManager(this));
 	mRaytrace.reset(new VkRaytrace(this));
+	mLightmap.reset(new VkLightmap(this));
 
 	mBufferManager->Init();
 
@@ -473,15 +475,6 @@ void VulkanRenderDevice::BeginFrame()
 	mDescriptorSetManager->BeginFrame();
 }
 
-void VulkanRenderDevice::InitLightmap(int LMTextureSize, int LMTextureCount, TArray<uint16_t>& LMTextureData)
-{
-	if (LMTextureData.Size() > 0)
-	{
-		GetTextureManager()->SetLightmap(LMTextureSize, LMTextureCount, LMTextureData);
-		LMTextureData.Reset(); // We no longer need this, release the memory
-	}
-}
-
 void VulkanRenderDevice::Draw2D()
 {
 	::Draw2D(twod, *RenderState(0));
@@ -536,9 +529,20 @@ void VulkanRenderDevice::PrintStartupLog()
 	Printf("Min. uniform buffer offset alignment: %" PRIu64 "\n", limits.minUniformBufferOffsetAlignment);
 }
 
-void VulkanRenderDevice::SetLevelMesh(hwrenderer::LevelMesh* mesh)
+void VulkanRenderDevice::SetLevelMesh(LevelMesh* mesh)
 {
 	mRaytrace->SetLevelMesh(mesh);
+
+	static LevelMesh* lastMesh = nullptr; // Temp hack; Since this function is called every frame we only want to do this once
+	if (lastMesh != mesh && mesh->GetSurfaceCount() > 0)
+	{
+		lastMesh = mesh;
+
+		mesh->UpdateLightLists();
+
+		GetTextureManager()->CreateLightmap(mesh->LMTextureSize, mesh->LMTextureCount);
+		GetLightmap()->Raytrace(mesh);
+	}
 }
 
 void VulkanRenderDevice::SetShadowMaps(const TArray<float>& lights, hwrenderer::LevelAABBTree* tree, bool newTree)
