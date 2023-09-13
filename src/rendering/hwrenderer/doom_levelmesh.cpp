@@ -23,6 +23,20 @@ CCMD(dumplevelmesh)
 	}
 }
 
+CCMD(invalidatelightmap)
+{
+	int count = 0;
+	for (auto& surface : level.levelMesh->Surfaces)
+	{
+		if (!surface.needsUpdate)
+			++count;
+		surface.needsUpdate = true;
+	}
+	Printf("Marked %d out of %d surfaces for update.\n", count, level.levelMesh->Surfaces.Size());
+}
+
+EXTERN_CVAR(Float, lm_scale);
+
 DoomLevelMesh::DoomLevelMesh(FLevelLocals &doomMap)
 {
 	SunColor = doomMap.SunColor; // TODO keep only one copy?
@@ -81,7 +95,6 @@ DoomLevelMesh::DoomLevelMesh(FLevelLocals &doomMap)
 	}
 
 	SetupLightmapUvs();
-	BindLightmapSurfacesToGeometry(doomMap);
 
 	Collision = std::make_unique<TriangleMeshShape>(MeshVertices.Data(), MeshVertices.Size(), MeshElements.Data(), MeshElements.Size());
 }
@@ -174,19 +187,138 @@ void DoomLevelMesh::CreatePortals()
 	}
 }
 
-void DoomLevelMesh::UpdateLightLists()
+void DoomLevelMesh::PropagateLight(const LevelMeshLight* light, std::set<LevelMeshPortal, RecursivePortalComparator>& touchedPortals, int lightPropagationRecursiveDepth)
 {
-	for (auto& surface : Surfaces)
+	if (++lightPropagationRecursiveDepth > 32) // TODO is this too much?
 	{
-		if (surface.Type == ST_FLOOR || surface.Type == ST_CEILING)
+		return;
+	}
+
+	SphereShape sphere;
+	sphere.center = FVector3(light->RelativeOrigin);
+	sphere.radius = light->Radius;
+	std::set<LevelMeshPortal, RecursivePortalComparator> portalsToErase;
+	for (int triangleIndex : TriangleMeshShape::find_all_hits(Collision.get(), &sphere))
+	{
+		auto& surface = Surfaces[MeshSurfaceIndexes[triangleIndex]];
+
+		// TODO skip any surface which isn't physically connected to the sector group in which the light resides
+		//if (light-> == surface.sectorGroup)
 		{
-			CreateLightList(&surface, surface.Subsector->section->lighthead, surface.Subsector->sector->PortalGroup);
-		}
-		else
-		{
-			CreateLightList(&surface, surface.Side->lighthead, surface.Side->sector->PortalGroup);
+			if (surface.portalIndex >= 0)
+			{
+				auto& portal = Portals[surface.portalIndex];
+
+				if (touchedPortals.insert(portal).second)
+				{
+					auto newLight = std::make_unique<LevelMeshLight>(*light);
+					auto fakeLight = newLight.get();
+					Lights.push_back(std::move(newLight));
+
+					fakeLight->RelativeOrigin = portal.TransformPosition(light->RelativeOrigin);
+					//fakeLight->sectorGroup = portal->targetSectorGroup;
+
+					PropagateLight(fakeLight, touchedPortals, lightPropagationRecursiveDepth);
+					portalsToErase.insert(portal);
+				}
+			}
+
+			// Add light to the list if it isn't already there
+			// TODO in order for this to work the light list be fed from global light buffer? Or just somehow de-duplicate portals?
+			bool found = false;
+			for (const LevelMeshLight* light2 : surface.LightList)
+			{
+				if (light2 == light)
+				{
+					found = true;
+					break;
+				}
+			}
+
+			if (!found)
+				surface.LightList.push_back(light);
 		}
 	}
+
+	for (auto& portal : portalsToErase)
+	{
+		touchedPortals.erase(portal); // Dear me: I wonder what was the reason for all of this.
+	}
+}
+
+void DoomLevelMesh::CreateLightList()
+{
+	std::set<FDynamicLight*> lightList; // bit silly ain't it?
+
+	Lights.clear();
+	for (auto& surface : Surfaces)
+	{
+		surface.LightList.clear();
+
+		if (surface.Type == ST_FLOOR || surface.Type == ST_CEILING)
+		{
+			auto node = surface.Subsector->section->lighthead;
+
+			while (node)
+			{
+				FDynamicLight* light = node->lightsource;
+
+				if (light->Trace())
+				{
+					if (lightList.insert(light).second)
+					{
+						DVector3 pos = light->Pos; //light->PosRelative(portalgroup);
+
+						LevelMeshLight meshlight;
+						meshlight.Origin = { (float)pos.X, (float)pos.Y, (float)pos.Z };
+						meshlight.RelativeOrigin = meshlight.Origin;
+						meshlight.Radius = (float)light->GetRadius();
+						meshlight.Intensity = (float)light->target->Alpha;
+						if (light->IsSpot())
+						{
+							meshlight.InnerAngleCos = (float)light->pSpotInnerAngle->Cos();
+							meshlight.OuterAngleCos = (float)light->pSpotOuterAngle->Cos();
+
+							DAngle negPitch = -*light->pPitch;
+							DAngle Angle = light->target->Angles.Yaw;
+							double xzLen = negPitch.Cos();
+							meshlight.SpotDir.X = float(-Angle.Cos() * xzLen);
+							meshlight.SpotDir.Y = float(-Angle.Sin() * xzLen);
+							meshlight.SpotDir.Z = float(-negPitch.Sin());
+						}
+						else
+						{
+							meshlight.InnerAngleCos = -1.0f;
+							meshlight.OuterAngleCos = -1.0f;
+							meshlight.SpotDir.X = 0.0f;
+							meshlight.SpotDir.Y = 0.0f;
+							meshlight.SpotDir.Z = 0.0f;
+						}
+						meshlight.Color.X = light->GetRed() * (1.0f / 255.0f);
+						meshlight.Color.Y = light->GetGreen() * (1.0f / 255.0f);
+						meshlight.Color.Z = light->GetBlue() * (1.0f / 255.0f);
+
+						Lights.push_back(std::make_unique<LevelMeshLight>(meshlight));
+					}
+				}
+
+				node = node->nextLight;
+			}
+		}
+	}
+
+	std::set<LevelMeshPortal, RecursivePortalComparator> touchedPortals;
+	touchedPortals.insert(Portals[0]);
+
+	for (int i = 0, count = (int)Lights.size(); i < count; ++i) // The array expands as the lights are duplicated/propagated
+	{
+		PropagateLight(Lights[i].get(), touchedPortals, 0);
+	}
+}
+
+void DoomLevelMesh::UpdateLightLists()
+{
+	CreateLightList(); // full recreation
 }
 
 void DoomLevelMesh::BindLightmapSurfacesToGeometry(FLevelLocals& doomMap)
@@ -227,8 +359,6 @@ void DoomLevelMesh::BindLightmapSurfacesToGeometry(FLevelLocals& doomMap)
 	{
 		surface.TexCoords = (float*)&LightmapUvs[surface.startUvIndex];
 
-		surface.LightmapNum = surface.atlasPageIndex;
-
 		if (surface.Type == ST_FLOOR || surface.Type == ST_CEILING)
 		{
 			surface.Subsector = &doomMap.subsectors[surface.typeIndex];
@@ -240,6 +370,15 @@ void DoomLevelMesh::BindLightmapSurfacesToGeometry(FLevelLocals& doomMap)
 		{
 			surface.Side = &doomMap.sides[surface.typeIndex];
 			SetSideLightmap(&surface);
+		}
+	}
+
+	// Runtime helper
+	for (auto& surface : Surfaces)
+	{
+		if ((surface.Type == ST_FLOOR || surface.Type == ST_CEILING) && surface.ControlSector)
+		{
+			XFloorToSurface[surface.Subsector->sector].Push(&surface);
 		}
 	}
 }
@@ -294,58 +433,6 @@ void DoomLevelMesh::SetSideLightmap(DoomLevelMeshSurface* surface)
 			}
 		}
 	}
-}
-
-void DoomLevelMesh::CreateLightList(DoomLevelMeshSurface* surface, FLightNode* node, int portalgroup)
-{
-	surface->LightListBuffer.clear();
-	surface->LightList.clear();
-
-	while (node)
-	{
-		FDynamicLight* light = node->lightsource;
-
-		if (light->Trace())
-		{
-			DVector3 pos = light->PosRelative(portalgroup);
-
-			LevelMeshLight meshlight;
-			meshlight.Origin = { (float)pos.X, (float)pos.Y, (float)pos.Z };
-			meshlight.RelativeOrigin = meshlight.Origin; // ?? what is the difference between this and Origin?
-			meshlight.Radius = (float)light->GetRadius();
-			meshlight.Intensity = 1.0f;
-			if (light->IsSpot())
-			{
-				meshlight.InnerAngleCos = (float)light->pSpotInnerAngle->Cos();
-				meshlight.OuterAngleCos = (float)light->pSpotOuterAngle->Cos();
-
-				DAngle negPitch = -*light->pPitch;
-				DAngle Angle = light->target->Angles.Yaw;
-				double xzLen = negPitch.Cos();
-				meshlight.SpotDir.X = float(-Angle.Cos() * xzLen);
-				meshlight.SpotDir.Y = float(-negPitch.Sin());
-				meshlight.SpotDir.Z = float(-Angle.Sin() * xzLen);
-			}
-			else
-			{
-				meshlight.InnerAngleCos = -1.0f;
-				meshlight.OuterAngleCos = -1.0f;
-				meshlight.SpotDir.X = 0.0f;
-				meshlight.SpotDir.Y = 0.0f;
-				meshlight.SpotDir.Z = 0.0f;
-			}
-			meshlight.Color.X = light->GetRed() * (1.0f / 255.0f);
-			meshlight.Color.Y = light->GetGreen() * (1.0f / 255.0f);
-			meshlight.Color.Z = light->GetBlue() * (1.0f / 255.0f);
-
-			surface->LightListBuffer.push_back(meshlight);
-		}
-
-		node = node->nextLight;
-	}
-
-	for (auto& silly : surface->LightListBuffer)
-		surface->LightList.push_back(&silly);
 }
 
 void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
@@ -403,7 +490,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 		MeshVertices.Push(verts[2]);
 		MeshVertices.Push(verts[3]);
 
-		surf.plane = ToPlane(verts[0], verts[1], verts[2]);
+		surf.plane = ToPlane(verts[0], verts[1], verts[2], verts[3]);
 		Surfaces.Push(surf);
 		return;
 	}
@@ -434,7 +521,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 		MeshVertices.Push(verts[2]);
 		MeshVertices.Push(verts[3]);
 
-		surf.plane = ToPlane(verts[0], verts[1], verts[2]);
+		surf.plane = ToPlane(verts[0], verts[1], verts[2], verts[3]);
 		Surfaces.Push(surf);
 		return;
 	}
@@ -482,7 +569,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 			MeshVertices.Push(verts[2]);
 			MeshVertices.Push(verts[3]);
 
-			surf.plane = ToPlane(verts[0], verts[1], verts[2]);
+			surf.plane = ToPlane(verts[0], verts[1], verts[2], verts[3]);
 			Surfaces.Push(surf);
 		}
 
@@ -520,7 +607,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 				MeshVertices.Push(verts[2]);
 				MeshVertices.Push(verts[3]);
 
-				surf.plane = ToPlane(verts[0], verts[1], verts[2]);
+				surf.plane = ToPlane(verts[0], verts[1], verts[2], verts[3]);
 				surf.Type = ST_LOWERSIDE;
 				surf.typeIndex = typeIndex;
 				surf.bSky = false;
@@ -559,7 +646,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 				MeshVertices.Push(verts[2]);
 				MeshVertices.Push(verts[3]);
 
-				surf.plane = ToPlane(verts[0], verts[1], verts[2]);
+				surf.plane = ToPlane(verts[0], verts[1], verts[2], verts[3]);
 				surf.Type = ST_UPPERSIDE;
 				surf.typeIndex = typeIndex;
 				surf.bSky = bSky;
@@ -598,7 +685,7 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 		MeshVertices.Push(verts[2]);
 		MeshVertices.Push(verts[3]);
 
-		surf.plane = ToPlane(verts[0], verts[1], verts[2]);
+		surf.plane = ToPlane(verts[0], verts[1], verts[2], verts[3]);
 		surf.Type = ST_MIDDLESIDE;
 		surf.typeIndex = typeIndex;
 		surf.sampleDimension = side->textures[side_t::mid].LightmapSampleDistance;
@@ -608,19 +695,19 @@ void DoomLevelMesh::CreateSideSurfaces(FLevelLocals &doomMap, side_t *side)
 	}
 }
 
-void DoomLevelMesh::CreateFloorSurface(FLevelLocals &doomMap, subsector_t *sub, sector_t *sector, int typeIndex, bool is3DFloor)
+void DoomLevelMesh::CreateFloorSurface(FLevelLocals &doomMap, subsector_t *sub, sector_t *sector, sector_t *controlSector, int typeIndex)
 {
 	DoomLevelMeshSurface surf;
 	surf.bSky = IsSkySector(sector, sector_t::floor);
 
 	secplane_t plane;
-	if (!is3DFloor)
+	if (!controlSector)
 	{
 		plane = sector->floorplane;
 	}
 	else
 	{
-		plane = sector->ceilingplane;
+		plane = controlSector->ceilingplane;
 		plane.FlipVert();
 	}
 
@@ -641,26 +728,26 @@ void DoomLevelMesh::CreateFloorSurface(FLevelLocals &doomMap, subsector_t *sub, 
 
 	surf.Type = ST_FLOOR;
 	surf.typeIndex = typeIndex;
-	surf.sampleDimension = sector->planes[sector_t::floor].LightmapSampleDistance;
-	surf.ControlSector = is3DFloor ? sector : nullptr;
+	surf.sampleDimension = (controlSector ? controlSector : sector)->planes[sector_t::floor].LightmapSampleDistance;
+	surf.ControlSector = controlSector;
 	surf.plane = FVector4((float)plane.Normal().X, (float)plane.Normal().Y, (float)plane.Normal().Z, -(float)plane.D);
 
 	Surfaces.Push(surf);
 }
 
-void DoomLevelMesh::CreateCeilingSurface(FLevelLocals &doomMap, subsector_t *sub, sector_t *sector, int typeIndex, bool is3DFloor)
+void DoomLevelMesh::CreateCeilingSurface(FLevelLocals& doomMap, subsector_t* sub, sector_t* sector, sector_t* controlSector, int typeIndex)
 {
 	DoomLevelMeshSurface surf;
 	surf.bSky = IsSkySector(sector, sector_t::ceiling);
 
 	secplane_t plane;
-	if (!is3DFloor)
+	if (!controlSector)
 	{
 		plane = sector->ceilingplane;
 	}
 	else
 	{
-		plane = sector->floorplane;
+		plane = controlSector->floorplane;
 		plane.FlipVert();
 	}
 
@@ -681,8 +768,8 @@ void DoomLevelMesh::CreateCeilingSurface(FLevelLocals &doomMap, subsector_t *sub
 
 	surf.Type = ST_CEILING;
 	surf.typeIndex = typeIndex;
-	surf.sampleDimension = sector->planes[sector_t::ceiling].LightmapSampleDistance;
-	surf.ControlSector = is3DFloor ? sector : nullptr;
+	surf.sampleDimension = (controlSector ? controlSector : sector)->planes[sector_t::ceiling].LightmapSampleDistance;
+	surf.ControlSector = controlSector;
 	surf.plane = FVector4((float)plane.Normal().X, (float)plane.Normal().Y, (float)plane.Normal().Z, -(float)plane.D);
 
 	Surfaces.Push(surf);
@@ -703,13 +790,13 @@ void DoomLevelMesh::CreateSubsectorSurfaces(FLevelLocals &doomMap)
 		if (!sector || IsControlSector(sector))
 			continue;
 
-		CreateFloorSurface(doomMap, sub, sector, i, false);
-		CreateCeilingSurface(doomMap, sub, sector, i, false);
+		CreateFloorSurface(doomMap, sub, sector, nullptr, i);
+		CreateCeilingSurface(doomMap, sub, sector, nullptr, i);
 
 		for (unsigned int j = 0; j < sector->e->XFloor.ffloors.Size(); j++)
 		{
-			CreateFloorSurface(doomMap, sub, sector->e->XFloor.ffloors[j]->model, i, true);
-			CreateCeilingSurface(doomMap, sub, sector->e->XFloor.ffloors[j]->model, i, true);
+			CreateFloorSurface(doomMap, sub, sector, sector->e->XFloor.ffloors[j]->model, i);
+			CreateCeilingSurface(doomMap, sub, sector, sector->e->XFloor.ffloors[j]->model, i);
 		}
 	}
 }
@@ -1021,6 +1108,8 @@ void DoomLevelMesh::BuildSurfaceParams(int lightMapTextureWidth, int lightMapTex
 		surface.sampleDimension = LightmapSampleDistance;
 	}
 
+	surface.sampleDimension = uint16_t(max(int(roundf(float(surface.sampleDimension) / max(1.0f / 4, float(lm_scale)))), 1));
+
 	{
 		// Round to nearest power of two
 		uint32_t n = uint16_t(surface.sampleDimension);
@@ -1028,7 +1117,7 @@ void DoomLevelMesh::BuildSurfaceParams(int lightMapTextureWidth, int lightMapTex
 		n |= n >> 2;
 		n |= n >> 4;
 		n |= n >> 8;
-		++n;
+		n = (n + 1) >> 1;
 		surface.sampleDimension = uint16_t(n) ? uint16_t(n) : uint16_t(0xFFFF);
 	}
 
