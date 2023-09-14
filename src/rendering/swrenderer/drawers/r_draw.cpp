@@ -243,44 +243,42 @@ namespace swrenderer
 
 		// Setup lights for column
 		FLightNode* cur_node = drawerargs.LightList();
-		while (cur_node)
+		for (FDynamicLight* light : cur_node->lights)
 		{
-			if (cur_node->lightsource->IsActive())
+			if (light->IsActive())
 			{
-				double lightX = cur_node->lightsource->X() - wallargs.ViewpointPos.X;
-				double lightY = cur_node->lightsource->Y() - wallargs.ViewpointPos.Y;
-				double lightZ = cur_node->lightsource->Z() - wallargs.ViewpointPos.Z;
+				double lightX = light->X() - wallargs.ViewpointPos.X;
+				double lightY = light->Y() - wallargs.ViewpointPos.Y;
+				double lightZ = light->Z() - wallargs.ViewpointPos.Z;
 
 				float lx = (float)(lightX * wallargs.Sin - lightY * wallargs.Cos) - drawerargs.dc_viewpos.X;
 				float ly = (float)(lightX * wallargs.TanCos + lightY * wallargs.TanSin) - drawerargs.dc_viewpos.Y;
 				float lz = (float)lightZ;
 
 				// Precalculate the constant part of the dot here so the drawer doesn't have to.
-				bool is_point_light = cur_node->lightsource->IsAttenuated();
+				bool is_point_light = light->IsAttenuated();
 				float lconstant = lx * lx + ly * ly;
 				float nlconstant = is_point_light ? lx * drawerargs.dc_normal.X + ly * drawerargs.dc_normal.Y : 0.0f;
 
 				// Include light only if it touches this column
-				float radius = cur_node->lightsource->GetRadius();
+				float radius = light->GetRadius();
 				if (radius * radius >= lconstant && nlconstant >= 0.0f)
 				{
-					uint32_t red = cur_node->lightsource->GetRed();
-					uint32_t green = cur_node->lightsource->GetGreen();
-					uint32_t blue = cur_node->lightsource->GetBlue();
+					uint32_t red = light->GetRed();
+					uint32_t green = light->GetGreen();
+					uint32_t blue = light->GetBlue();
 
-					auto& light = drawerargs.dc_lights[drawerargs.dc_num_lights++];
-					light.x = lconstant;
-					light.y = nlconstant;
-					light.z = lz;
-					light.radius = 256.0f / cur_node->lightsource->GetRadius();
-					light.color = (red << 16) | (green << 8) | blue;
+					auto& swLight = drawerargs.dc_lights[drawerargs.dc_num_lights++];
+					swLight.x = lconstant;
+					swLight.y = nlconstant;
+					swLight.z = lz;
+					swLight.radius = 256.0f / light->GetRadius();
+					swLight.color = (red << 16) | (green << 8) | blue;
 
 					if (drawerargs.dc_num_lights == WallColumnDrawerArgs::MAX_DRAWER_LIGHTS)
 						break;
 				}
 			}
-
-			cur_node = cur_node->nextLight;
 		}
 	}
 

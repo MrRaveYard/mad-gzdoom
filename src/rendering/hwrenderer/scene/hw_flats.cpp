@@ -150,13 +150,10 @@ void HWFlat::SetupLights(HWDrawInfo *di, FRenderState& state, FLightNode * node,
 		dynlightindex = -1;
 		return;	// no lights on additively blended surfaces.
 	}
-	while (node)
+	for (FDynamicLight* light : node->lights)
 	{
-		FDynamicLight * light = node->lightsource;
-
 		if (!light->IsActive() || light->DontLightMap())
 		{
-			node = node->nextLight;
 			continue;
 		}
 		iter_dlightf++;
@@ -166,13 +163,11 @@ void HWFlat::SetupLights(HWDrawInfo *di, FRenderState& state, FLightNode * node,
 		double planeh = plane.plane.ZatPoint(light->Pos);
 		if ((planeh<light->Z() && ceiling) || (planeh>light->Z() && !ceiling))
 		{
-			node = node->nextLight;
 			continue;
 		}
 
 		p.Set(plane.plane.Normal(), plane.plane.fD());
 		draw_dlightf += GetLight(lightdata, portalgroup, p, light, false);
-		node = node->nextLight;
 	}
 
 	dynlightindex = state.UploadLights(lightdata);

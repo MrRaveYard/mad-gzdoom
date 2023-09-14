@@ -182,19 +182,14 @@ protected:
 };
 
 
+#include <unordered_set>
+
 struct FLightNode
 {
-	FLightNode ** prevTarget;
-	FLightNode * nextTarget;
-	FLightNode ** prevLight;
-	FLightNode * nextLight;
-	FDynamicLight * lightsource;
-	union
-	{
-		side_t * targLine;
-		subsector_t * targSubsector;
-		void * targ;
-	};
+	//FLightNode** prevTarget;
+	//FLightNode* nextTarget;
+	std::unordered_set<FDynamicLight*> lights;
+	std::unordered_set<void*> surfaces; // FSection or side_t
 };
 
 struct FDynamicLight

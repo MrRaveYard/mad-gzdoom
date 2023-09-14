@@ -259,10 +259,8 @@ void DoomLevelMesh::CreateLightList()
 		{
 			auto node = surface.Subsector->section->lighthead;
 
-			while (node)
+			for (FDynamicLight* light : node->lights)
 			{
-				FDynamicLight* light = node->lightsource;
-
 				if (light->Trace())
 				{
 					if (lightList.insert(light).second)
@@ -301,8 +299,6 @@ void DoomLevelMesh::CreateLightList()
 						Lights.push_back(std::make_unique<LevelMeshLight>(meshlight));
 					}
 				}
-
-				node = node->nextLight;
 			}
 		}
 	}

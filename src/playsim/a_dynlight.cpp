@@ -423,6 +423,7 @@ void FDynamicLight::UpdateLocation()
 //
 //=============================================================================
 
+#if 0
 FLightNode * AddLightNode(FLightNode ** thread, void * linkto, FDynamicLight * light, FLightNode *& nextnode)
 {
 	FLightNode * node;
@@ -430,7 +431,7 @@ FLightNode * AddLightNode(FLightNode ** thread, void * linkto, FDynamicLight * l
 	node = nextnode;
 	while (node)
     {
-		if (node->targ==linkto)   // Already have a node for this sector?
+		if (node->targ == linkto)   // Already have a node for this sector?
 		{
 			node->lightsource = light; // Yes. Setting m_thing says 'keep it'.
 			return(nextnode);
@@ -489,7 +490,7 @@ static FLightNode * DeleteLightNode(FLightNode * node)
 	}
 	return(nullptr);
 }
-
+#endif
 
 
 //==========================================================================
@@ -546,8 +547,9 @@ void FDynamicLight::CollectWithinRadius(const DVector3 &opos, FSection *section,
 		auto pos = collected_ss[i].pos;
 		section = collected_ss[i].sect;
 
-		touching_sector = AddLightNode(&section->lighthead, section, this, touching_sector);
-
+		//touching_sector = AddLightNode(&section->lighthead, section, this, touching_sector);
+		section->lighthead->lights.insert(this);
+		touching_sector->surfaces.insert(section);
 
 		auto processSide = [&](side_t *sidedef, const vertex_t *v1, const vertex_t *v2)
 		{
@@ -558,7 +560,9 @@ void FDynamicLight::CollectWithinRadius(const DVector3 &opos, FSection *section,
 				if ((pos.Y - v1->fY()) * (v2->fX() - v1->fX()) + (v1->fX() - pos.X) * (v2->fY() - v1->fY()) <= 0)
 				{
 					linedef->validcount = ::validcount;
-					touching_sides = AddLightNode(&sidedef->lighthead, sidedef, this, touching_sides);
+					//touching_sides = AddLightNode(&sidedef->lighthead, sidedef, this, touching_sides);
+					sidedef->lighthead->lights.insert(this);
+					touching_sides->surfaces.insert(sidedef);
 				}
 				else if (linedef->sidedef[0] == sidedef && linedef->sidedef[1] == nullptr)
 				{
@@ -661,6 +665,7 @@ void FDynamicLight::CollectWithinRadius(const DVector3 &opos, FSection *section,
 void FDynamicLight::LinkLight()
 {
 	// mark the old light nodes
+#if 0
 	FLightNode * node;
 	
 	node = touching_sides;
@@ -675,6 +680,9 @@ void FDynamicLight::LinkLight()
 		node->lightsource = nullptr;
 		node = node->nextTarget;
 	}
+#endif
+
+	UnlinkLight();
 
 	if (radius>0)
 	{
@@ -686,10 +694,9 @@ void FDynamicLight::LinkLight()
 		CollectWithinRadius(Pos, sect, float(radius*radius));
 
 	}
-		
 	// Now delete any nodes that won't be used. These are the ones where
 	// m_thing is still nullptr.
-	
+#if 0
 	node = touching_sides;
 	while (node)
 	{
@@ -711,6 +718,7 @@ void FDynamicLight::LinkLight()
 		else
 			node = node->nextTarget;
 	}
+#endif
 }
 
 
@@ -721,8 +729,18 @@ void FDynamicLight::LinkLight()
 //==========================================================================
 void FDynamicLight::UnlinkLight ()
 {
-	while (touching_sides) touching_sides = DeleteLightNode(touching_sides);
-	while (touching_sector) touching_sector = DeleteLightNode(touching_sector);
+
+	for (auto& s : touching_sides->surfaces)
+	{
+		((side_t*)s)->lighthead->lights.erase(this);
+	}
+	for (auto& s : touching_sector->surfaces)
+	{
+		((side_t*)s)->lighthead->lights.erase(this);
+	}
+
+	touching_sides->surfaces.clear();
+	touching_sector->surfaces.clear();
 	shadowmapped = false;
 }
 

@@ -117,20 +117,16 @@ int HWDrawInfo::SetupLightsForOtherPlane(subsector_t * sub, FDynLightData &light
 		FLightNode * node = sub->section->lighthead;
 
 		lightdata.Clear();
-		while (node)
+		for (FDynamicLight* light : node->lights)
 		{
-			FDynamicLight * light = node->lightsource;
-
 			if (!light->IsActive())
 			{
-				node = node->nextLight;
 				continue;
 			}
 			iter_dlightf++;
 
 			p.Set(plane->Normal(), plane->fD());
 			draw_dlightf += GetLight(lightdata, sub->sector->PortalGroup, p, light, true);
-			node = node->nextLight;
 		}
 
 		return state.UploadLights(lightdata);

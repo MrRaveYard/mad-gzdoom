@@ -416,18 +416,18 @@ void HWWall::SetupLights(HWDrawInfo *di, FRenderState& state, FDynLightData &lig
 	else node = NULL;
 
 	// Iterate through all dynamic lights which touch this wall and render them
-	while (node)
+	for (FDynamicLight* light : node->lights)
 	{
-		if (node->lightsource->IsActive() && !node->lightsource->DontLightMap())
+		if (light->IsActive() && !light->DontLightMap())
 		{
 			iter_dlight++;
 
-			DVector3 posrel = node->lightsource->PosRelative(seg->frontsector->PortalGroup);
+			DVector3 posrel = light->PosRelative(seg->frontsector->PortalGroup);
 			float x = posrel.X;
 			float y = posrel.Y;
 			float z = posrel.Z;
 			float dist = fabsf(p.DistToPoint(x, z, y));
-			float radius = node->lightsource->GetRadius();
+			float radius = light->GetRadius();
 			float scale = 1.0f / ((2.f * radius) - dist);
 			FVector3 fn, pos;
 
@@ -463,11 +463,10 @@ void HWWall::SetupLights(HWDrawInfo *di, FRenderState& state, FDynLightData &lig
 				}
 				if (outcnt[0]!=4 && outcnt[1]!=4 && outcnt[2]!=4 && outcnt[3]!=4) 
 				{
-					draw_dlight += GetLight(lightdata, seg->frontsector->PortalGroup, p, node->lightsource, true);
+					draw_dlight += GetLight(lightdata, seg->frontsector->PortalGroup, p, light, true);
 				}
 			}
 		}
-		node = node->nextLight;
 	}
 	dynlightindex = state.UploadLights(lightdata);
 }

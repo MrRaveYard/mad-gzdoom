@@ -209,16 +209,15 @@ namespace swrenderer
 			float lit_green = 0;
 			float lit_blue = 0;
 			auto node = vis->section->lighthead;
-			while (node != nullptr)
+			for (FDynamicLight* light : node->lights)
 			{
-				FDynamicLight *light = node->lightsource;
 				if (light->ShouldLightActor(thing))
 				{
 					float lx = (float)(light->X() - thing->X());
 					float ly = (float)(light->Y() - thing->Y());
 					float lz = (float)(light->Z() - thing->Center());
 					float LdotL = lx * lx + ly * ly + lz * lz;
-					float radius = node->lightsource->GetRadius();
+					float radius = light->GetRadius();
 					if (radius * radius >= LdotL)
 					{
 						float distance = sqrt(LdotL);
@@ -243,7 +242,6 @@ namespace swrenderer
 						}
 					}
 				}
-				node = node->nextLight;
 			}
 			lit_red = clamp(lit_red * 255.0f, 0.0f, 255.0f);
 			lit_green = clamp(lit_green * 255.0f, 0.0f, 255.0f);

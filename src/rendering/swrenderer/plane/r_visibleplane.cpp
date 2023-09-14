@@ -75,15 +75,15 @@ namespace swrenderer
 		if (cameraLight->FixedColormap() != NULL || cameraLight->FixedLightLevel() >= 0)
 			return; // [SP] no dynlights if invul or lightamp
 
-		while (node)
+		for (FDynamicLight* light : node->lights)
 		{
-			if (node->lightsource->IsActive() && (height.PointOnSide(node->lightsource->Pos) > 0))
+			if (light->IsActive() && (height.PointOnSide(light->Pos) > 0))
 			{
 				bool found = false;
 				VisiblePlaneLight *light_node = lights;
 				while (light_node)
 				{
-					if (light_node->lightsource == node->lightsource)
+					if (light_node->lightsource == light)
 					{
 						found = true;
 						break;
@@ -94,11 +94,10 @@ namespace swrenderer
 				{
 					VisiblePlaneLight *newlight = thread->FrameMemory->NewObject<VisiblePlaneLight>();
 					newlight->next = lights;
-					newlight->lightsource = node->lightsource;
+					newlight->lightsource = light;
 					lights = newlight;
 				}
 			}
-			node = node->nextLight;
 		}
 	}
 

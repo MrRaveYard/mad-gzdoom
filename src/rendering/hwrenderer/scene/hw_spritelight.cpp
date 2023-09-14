@@ -60,9 +60,8 @@ public:
 		}
 	}
 
-	bool TraceLightVisbility(FLightNode* node, const FVector3& L, float dist)
+	bool TraceLightVisbility(FDynamicLight* light, const FVector3& L, float dist)
 	{
-		FDynamicLight* light = node->lightsource;
 		if (!light->Trace() || !level.levelMesh || !Actor)
 			return true;
 
@@ -130,9 +129,8 @@ void HWDrawInfo::GetDynSpriteLight(AActor *self, float x, float y, float z, FLig
 	}
 
 	// Go through both light lists
-	while (node)
+	for (FDynamicLight* light : node->lights)
 	{
-		light=node->lightsource;
 		if (light->ShouldLightActor(self))
 		{
 			float dist;
@@ -165,7 +163,7 @@ void HWDrawInfo::GetDynSpriteLight(AActor *self, float x, float y, float z, FLig
 				if (light->IsSpot() || light->Trace())
 					L *= -1.0f / dist;
 
-				if (staticLight.TraceLightVisbility(node, L, dist))
+				if (staticLight.TraceLightVisbility(light, L, dist))
 				{
 					frac = 1.0f - (dist / radius);
 
@@ -202,7 +200,6 @@ void HWDrawInfo::GetDynSpriteLight(AActor *self, float x, float y, float z, FLig
 				}
 			}
 		}
-		node = node->nextLight;
 	}
 }
 
@@ -248,9 +245,8 @@ void hw_GetDynModelLight(HWDrawContext* drawctx, AActor *self, FDynLightData &mo
 			auto section = subsector->section;
 			if (section->validcount == dl_validcount) return;	// already done from a previous subsector.
 			FLightNode * node = section->lighthead;
-			while (node) // check all lights touching a subsector
+			for (FDynamicLight* light : node->lights) // check all lights touching a subsector
 			{
-				FDynamicLight *light = node->lightsource;
 				if (light->ShouldLightActor(self))
 				{
 					int group = subsector->sector->PortalGroup;
@@ -269,7 +265,7 @@ void hw_GetDynModelLight(HWDrawContext* drawctx, AActor *self, FDynLightData &mo
 							if (light->Trace())
 								L *= 1.0f / dist;
 
-							if (staticLight.TraceLightVisbility(node, L, dist))
+							if (staticLight.TraceLightVisbility(light, L, dist))
 							{
 								AddLightToList(modellightdata, group, light, true);
 							}
@@ -278,7 +274,6 @@ void hw_GetDynModelLight(HWDrawContext* drawctx, AActor *self, FDynLightData &mo
 						}
 					}
 				}
-				node = node->nextLight;
 			}
 		});
 	}

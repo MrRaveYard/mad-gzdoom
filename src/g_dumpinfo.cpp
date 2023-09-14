@@ -79,7 +79,7 @@ CCMD(listlights)
 				Printf(", frame = %s ", TexMan.GetGameTexture(spr)->GetName().GetChars());
 			}
 			
-			
+#if 0 // FLIGHTNODE REFACTOR TODO
 			FLightNode * node;
 			
 			node=dl->touching_sides;
@@ -100,6 +100,8 @@ CCMD(listlights)
 				sectors++;
 				node = node->nextTarget;
 			}
+#endif
+
 			Printf("- %d walls, %d sectors\n", walls, sectors);
 			
 		}
