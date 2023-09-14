@@ -129,6 +129,7 @@ void HWDrawInfo::GetDynSpriteLight(AActor *self, float x, float y, float z, FLig
 	}
 
 	// Go through both light lists
+	if(node)
 	for (FDynamicLight* light : node->lights)
 	{
 		if (light->ShouldLightActor(self))
@@ -244,33 +245,36 @@ void hw_GetDynModelLight(HWDrawContext* drawctx, AActor *self, FDynLightData &mo
 		{
 			auto section = subsector->section;
 			if (section->validcount == dl_validcount) return;	// already done from a previous subsector.
-			FLightNode * node = section->lighthead;
-			for (FDynamicLight* light : node->lights) // check all lights touching a subsector
+			FLightNode* node = section->lighthead;
+			if (node)
 			{
-				if (light->ShouldLightActor(self))
+				for (FDynamicLight* light : node->lights) // check all lights touching a subsector
 				{
-					int group = subsector->sector->PortalGroup;
-					DVector3 pos = light->PosRelative(group);
-					float radius = (float)(light->GetRadius() + actorradius);
-					double dx = pos.X - x;
-					double dy = pos.Y - y;
-					double dz = pos.Z - z;
-					double distSquared = dx * dx + dy * dy + dz * dz;
-					if (distSquared < radius * radius) // Light and actor touches
+					if (light->ShouldLightActor(self))
 					{
-						if (std::find(addedLights.begin(), addedLights.end(), light) == addedLights.end()) // Check if we already added this light from a different subsector
+						int group = subsector->sector->PortalGroup;
+						DVector3 pos = light->PosRelative(group);
+						float radius = (float)(light->GetRadius() + actorradius);
+						double dx = pos.X - x;
+						double dy = pos.Y - y;
+						double dz = pos.Z - z;
+						double distSquared = dx * dx + dy * dy + dz * dz;
+						if (distSquared < radius * radius) // Light and actor touches
 						{
-							FVector3 L(dx, dy, dz);
-							float dist = sqrtf(distSquared);
-							if (light->Trace())
-								L *= 1.0f / dist;
-
-							if (staticLight.TraceLightVisbility(light, L, dist))
+							if (std::find(addedLights.begin(), addedLights.end(), light) == addedLights.end()) // Check if we already added this light from a different subsector
 							{
-								AddLightToList(modellightdata, group, light, true);
-							}
+								FVector3 L(dx, dy, dz);
+								float dist = sqrtf(distSquared);
+								if (light->Trace())
+									L *= 1.0f / dist;
 
-							addedLights.Push(light);
+								if (staticLight.TraceLightVisbility(light, L, dist))
+								{
+									AddLightToList(modellightdata, group, light, true);
+								}
+
+								addedLights.Push(light);
+							}
 						}
 					}
 				}

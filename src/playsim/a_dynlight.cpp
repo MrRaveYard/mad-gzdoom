@@ -548,8 +548,20 @@ void FDynamicLight::CollectWithinRadius(const DVector3 &opos, FSection *section,
 		section = collected_ss[i].sect;
 
 		//touching_sector = AddLightNode(&section->lighthead, section, this, touching_sector);
+
+		if (section->lighthead == nullptr)
+		{
+			section->lighthead = new FLightNode();
+		}
+
+		if (touching_sector == nullptr)
+		{
+			touching_sector = new FLightNode();
+		}
+
 		section->lighthead->lights.insert(this);
 		touching_sector->surfaces.insert(section);
+
 
 		auto processSide = [&](side_t *sidedef, const vertex_t *v1, const vertex_t *v2)
 		{
@@ -561,7 +573,12 @@ void FDynamicLight::CollectWithinRadius(const DVector3 &opos, FSection *section,
 				{
 					linedef->validcount = ::validcount;
 					//touching_sides = AddLightNode(&sidedef->lighthead, sidedef, this, touching_sides);
+					if (sidedef->lighthead == nullptr)
+						sidedef->lighthead = new FLightNode();
 					sidedef->lighthead->lights.insert(this);
+
+					if (touching_sides == nullptr)
+						touching_sides = new FLightNode();
 					touching_sides->surfaces.insert(sidedef);
 				}
 				else if (linedef->sidedef[0] == sidedef && linedef->sidedef[1] == nullptr)
@@ -729,18 +746,24 @@ void FDynamicLight::LinkLight()
 //==========================================================================
 void FDynamicLight::UnlinkLight ()
 {
-
-	for (auto& s : touching_sides->surfaces)
+	if (touching_sides)
 	{
-		((side_t*)s)->lighthead->lights.erase(this);
-	}
-	for (auto& s : touching_sector->surfaces)
-	{
-		((side_t*)s)->lighthead->lights.erase(this);
+		for (auto& s : touching_sides->surfaces)
+		{
+			((side_t*)s)->lighthead->lights.erase(this);
+		}
+		touching_sides->surfaces.clear();
 	}
 
-	touching_sides->surfaces.clear();
-	touching_sector->surfaces.clear();
+	if (touching_sector)
+	{
+		for (auto& s : touching_sector->surfaces)
+		{
+			((FSection*)s)->lighthead->lights.erase(this);
+		}
+		touching_sector->surfaces.clear();
+	}
+
 	shadowmapped = false;
 }
 

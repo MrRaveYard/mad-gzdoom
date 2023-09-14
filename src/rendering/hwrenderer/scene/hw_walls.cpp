@@ -416,6 +416,7 @@ void HWWall::SetupLights(HWDrawInfo *di, FRenderState& state, FDynLightData &lig
 	else node = NULL;
 
 	// Iterate through all dynamic lights which touch this wall and render them
+	if(node)
 	for (FDynamicLight* light : node->lights)
 	{
 		if (light->IsActive() && !light->DontLightMap())

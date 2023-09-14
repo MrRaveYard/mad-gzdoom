@@ -453,6 +453,9 @@ public:
 	TArray<FSectorPortal> sectorPortals;
 	TArray<FLinePortal> linePortals;
 
+	// Dynamic lights
+	TArray<FLightNode*> lightNodes;
+
 	// Lightmaps
 	bool lightmaps = false;
 	TArray<DoomLevelMeshSurface*> LMSurfaces;

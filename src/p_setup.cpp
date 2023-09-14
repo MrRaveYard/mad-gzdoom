@@ -377,6 +377,12 @@ void FLevelLocals::ClearLevelData(bool fullgc)
 	levelMesh = nullptr;
 	if (screen)
 		screen->mShadowMap->SetAABBTree(nullptr);
+
+	for (auto* node : lightNodes)
+	{
+		delete node;
+	}
+	lightNodes.Clear();
 }
 
 //==========================================================================

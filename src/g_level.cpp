@@ -1787,6 +1787,11 @@ FLevelLocals::~FLevelLocals()
 {
 	if (localEventManager) delete localEventManager;
 	if (aabbTree) delete aabbTree;
+
+	for (auto* node : lightNodes)
+	{
+		delete node;
+	}
 }
 
 //==========================================================================

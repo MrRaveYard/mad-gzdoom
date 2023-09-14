@@ -186,8 +186,6 @@ protected:
 
 struct FLightNode
 {
-	//FLightNode** prevTarget;
-	//FLightNode* nextTarget;
 	std::unordered_set<FDynamicLight*> lights;
 	std::unordered_set<void*> surfaces; // FSection or side_t
 };

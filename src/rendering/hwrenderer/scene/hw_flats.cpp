@@ -150,6 +150,8 @@ void HWFlat::SetupLights(HWDrawInfo *di, FRenderState& state, FLightNode * node,
 		dynlightindex = -1;
 		return;	// no lights on additively blended surfaces.
 	}
+
+	if(node)
 	for (FDynamicLight* light : node->lights)
 	{
 		if (!light->IsActive() || light->DontLightMap())

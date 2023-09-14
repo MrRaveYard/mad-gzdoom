@@ -259,6 +259,7 @@ void DoomLevelMesh::CreateLightList()
 		{
 			auto node = surface.Subsector->section->lighthead;
 
+			if(node)
 			for (FDynamicLight* light : node->lights)
 			{
 				if (light->Trace())
