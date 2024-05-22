@@ -1188,10 +1188,21 @@ void DoomLevelMesh::CreatePortals(FLevelLocals& doomMap)
 
 // struct lightmap
 
+static void InvalidateActorLightTraceCache()
+{
+	auto it = level.GetThinkerIterator<AActor>();
+	AActor* ac;
+	while ((ac = it.Next()))
+	{
+		ac->InvalidateLightTraceCache();
+	}
+}
+
 DEFINE_ACTION_FUNCTION(_Lightmap, Invalidate)
 {
 	PARAM_PROLOGUE;
 	InvalidateLightmap();
+	InvalidateActorLightTraceCache();
 	return 0;
 }
 
@@ -1204,7 +1215,7 @@ DEFINE_ACTION_FUNCTION(_Lightmap, SetSunDirection)
 
 	auto vec = FVector3(float(x), float(y), float(z));
 
-	if (!vec.isZero())
+	if (!vec.isZero() && level.levelMesh)
 	{
 		vec.MakeUnit();
 		level.SunDirection = vec;
@@ -1220,8 +1231,11 @@ DEFINE_ACTION_FUNCTION(_Lightmap, SetSunColor)
 	PARAM_FLOAT(y);
 	PARAM_FLOAT(z);
 
-	auto vec = FVector3(float(x), float(y), float(z));
-	level.SunColor = vec;
-	level.levelMesh->SunColor = vec;
+	if (level.levelMesh)
+	{
+		auto vec = FVector3(float(x), float(y), float(z));
+		level.SunColor = vec;
+		level.levelMesh->SunColor = vec;
+	}
 	return 0;
 }
