@@ -32,6 +32,37 @@ struct JitLineInfo
 	asmjit::Label Label;
 };
 
+class OptimizedX86Compiler : public asmjit::X86Compiler
+{
+	typedef asmjit::X86Compiler super;
+public:
+	OptimizedX86Compiler(asmjit::CodeHolder* code) : super(code) {}
+
+	inline auto movsd(const asmjit::X86Xmm& a, const asmjit::X86Mem& b) { return super::movsd(a, b); }
+	inline auto movsd(const asmjit::X86Mem& a, const asmjit::X86Xmm& b) { return super::movsd(a, b); }
+	inline auto movsd(const asmjit::X86Xmm& a, const asmjit::X86Xmm& b)
+	{
+		if (a != b)
+			return super::movsd(a, b);
+		return asmjit::Error(asmjit::ErrorCode::kErrorOk);
+	}
+
+	template<typename TA, typename TB>
+	inline auto mov(const TA& a, const TB& b)
+	{
+		if constexpr (std::is_same<TA, TB>::value)
+		{
+			if (a != b)
+				return super::mov(a, b);
+			return asmjit::Error(asmjit::ErrorCode::kErrorOk);
+		}
+		else
+		{
+			return super::mov(a, b);
+		}
+	}
+};
+
 class JitCompiler
 {
 public:
@@ -251,7 +282,7 @@ private:
 	asmjit::X86Gp CheckRegS(int r0, int r1);
 	asmjit::X86Gp CheckRegA(int r0, int r1);
 
-	asmjit::X86Compiler cc;
+	OptimizedX86Compiler cc;
 	VMScriptFunction *sfunc;
 
 	asmjit::CCFunc *func = nullptr;
