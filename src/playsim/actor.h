@@ -712,7 +712,7 @@ struct AnimOverride
 	int flags = ANIMOVERRIDE_NONE;
 	float framerate;
 	double startTic; // when the current animation started (changing framerates counts as restarting) (or when animation starts if interpolating from previous animation)
-	double switchTic; // when the animation was changed -- where to interpolate the switch from
+	double switchOffset; // when the animation was changed -- where to interpolate the switch from
 };
 
 struct ModelOverride
@@ -1366,19 +1366,23 @@ public:
 	FVector2 PrevScale;
 	float PrevAlpha;
 	DAngle   PrevFOV;
-	int PrevPortalGroup;
 	TArray<FDynamicLight *> AttachedLights;
 	TDeletingArray<FLightDefaults *> UserLights;
+	int PrevPortalGroup;
 
 	// When was this actor spawned?
 	int SpawnTime;
 	uint32_t SpawnOrder;
 
+	int UnmorphTime;
+	int MorphFlags;
+	int PremorphProperties;
+	PClassActor* MorphExitFlash;
 	// landing speed from a jump with normal gravity (squats the player's view)
 	// (note: this is put into AActor instead of the PlayerPawn because non-players also use the value)
 	double LandingSpeed;
 
-	double SourceRadius = 5.0; // Light source radius
+	double SoftShadowRadius = 5.0; // Light source's soft shadow radius
 
 	// ThingIDs
 	void SetTID (int newTID);

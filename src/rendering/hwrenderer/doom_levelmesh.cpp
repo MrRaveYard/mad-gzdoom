@@ -266,7 +266,7 @@ int DoomLevelMesh::GetLightIndex(FDynamicLight* light, int portalgroup)
 	meshlight.Color.Y = light->GetGreen() * (1.0f / 255.0f);
 	meshlight.Color.Z = light->GetBlue() * (1.0f / 255.0f);
 
-	meshlight.SourceRadius = light->GetSourceRadius();
+	meshlight.SoftShadowRadius = light->GetSoftShadowRadius();
 
 	if (light->Sector)
 		meshlight.SectorGroup = sectorGroup[light->Sector->Index()];
@@ -350,7 +350,7 @@ void DoomLevelMesh::CreateSurfaces(FLevelLocals& doomMap)
 	for (unsigned int i = 0; i < doomMap.sectors.Size(); i++)
 	{
 		sector_t* sector = &doomMap.sectors[i];
-		if (sector->subsectors[0]->flags & SSECF_POLYORG)
+		if (sector->subsectorcount == 0 || sector->subsectors[0]->flags & SSECF_POLYORG)
 			continue;
 		UpdateFlat(doomMap, i);
 	}
@@ -464,37 +464,57 @@ void DoomLevelMesh::CreateWallSurface(side_t* side, HWWallDispatcher& disp, Mesh
 			wallpart.DrawWall(&disp, state, translucent);
 		}
 
+		int numVertices = 0;
+		int numIndexes = 0;
+		int numUniforms = 0;
+		for (auto& it : state.mSortedLists)
+		{
+			numUniforms++;
+			for (MeshDrawCommand& command : it.second.mDraws)
+			{
+				if (command.DrawType == DT_TriangleFan && command.Count >= 3)
+				{
+					numVertices += command.Count;
+					numIndexes += (command.Count - 2) * 3;
+				}
+			}
+		}
+
+		GeometryAllocInfo ginfo = AllocGeometry(numVertices, numIndexes);
+		UniformsAllocInfo uinfo = AllocUniforms(numUniforms);
+
 		int pipelineID = 0;
-		int startVertIndex = Mesh.Vertices.Size();
-		int startElementIndex = Mesh.Indexes.Size();
+		int uniformsIndex = uinfo.Start;
+		int vertIndex = ginfo.VertexStart;
 		for (auto& it : state.mSortedLists)
 		{
 			const MeshApplyState& applyState = it.first;
 
 			pipelineID = screen->GetLevelMeshPipelineID(applyState.applyData, applyState.surfaceUniforms, applyState.material);
 
-			int uniformsIndex = Mesh.Uniforms.Size();
-			Mesh.Uniforms.Push(applyState.surfaceUniforms);
-			Mesh.Materials.Push(applyState.material);
-
 			for (MeshDrawCommand& command : it.second.mDraws)
 			{
-				for (int i = command.Start, end = command.Start + command.Count; i < end; i++)
-				{
-					Mesh.Vertices.Push(state.mVertices[i]);
-					Mesh.UniformIndexes.Push(uniformsIndex);
-				}
-
-				if (command.DrawType == DT_TriangleFan)
+				if (command.DrawType == DT_TriangleFan && command.Count >= 3)
 				{
 					for (int i = 2, count = command.Count; i < count; i++)
 					{
-						Mesh.Indexes.Push(startVertIndex);
-						Mesh.Indexes.Push(startVertIndex + i - 1);
-						Mesh.Indexes.Push(startVertIndex + i);
+						*(ginfo.Indexes++) = vertIndex;
+						*(ginfo.Indexes++) = vertIndex + i - 1;
+						*(ginfo.Indexes++) = vertIndex + i;
 					}
+
+					for (int i = command.Start, end = command.Start + command.Count; i < end; i++)
+					{
+						*(ginfo.Vertices++) = state.mVertices[i];
+						*(ginfo.UniformIndexes++) = uniformsIndex;
+					}
+					vertIndex += command.Count;
 				}
 			}
+
+			*(uinfo.Uniforms++) = applyState.surfaceUniforms;
+			*(uinfo.Materials++) = applyState.material;
+			uniformsIndex++;
 		}
 		state.mSortedLists.clear();
 		state.mVertices.Clear();
@@ -526,10 +546,10 @@ void DoomLevelMesh::CreateWallSurface(side_t* side, HWWallDispatcher& disp, Mesh
 		surf.AlwaysUpdate = !!(side->sector->Flags & SECF_LM_DYNAMIC);
 		surf.SectorGroup = sectorGroup[side->sector->Index()];
 		surf.Alpha = float(side->linedef->alpha);
-		surf.MeshLocation.StartVertIndex = startVertIndex;
-		surf.MeshLocation.StartElementIndex = startElementIndex;
-		surf.MeshLocation.NumVerts = Mesh.Vertices.Size() - startVertIndex;
-		surf.MeshLocation.NumElements = Mesh.Indexes.Size() - startElementIndex;
+		surf.MeshLocation.StartVertIndex = ginfo.VertexStart;
+		surf.MeshLocation.StartElementIndex = ginfo.IndexStart;
+		surf.MeshLocation.NumVerts = ginfo.VertexCount;
+		surf.MeshLocation.NumElements = ginfo.IndexCount;
 		surf.Plane = FVector4(N.X, N.Y, 0.0f, v1 | N);
 		surf.Texture = wallpart.texture;
 		surf.PipelineID = pipelineID;
@@ -607,6 +627,10 @@ void DoomLevelMesh::CreateFlatSurface(HWFlatDispatcher& disp, MeshBuilder& state
 {
 	for (HWFlat& flatpart : list)
 	{
+		state.mSortedLists.clear();
+		state.mVertices.Clear();
+		state.mIndexes.Clear();
+
 		if (isSky)
 		{
 			state.SetEffect(EFF_PORTAL);
@@ -636,27 +660,43 @@ void DoomLevelMesh::CreateFlatSurface(HWFlatDispatcher& disp, MeshBuilder& state
 		textureMatrix.loadIdentity();
 
 		int pipelineID = 0;
-		int uniformsIndex = 0;
+		const SurfaceUniforms* uniforms = nullptr;
+		const FMaterialState* material = nullptr;
 		bool foundDraw = false;
 		for (auto& it : state.mSortedLists)
 		{
 			const MeshApplyState& applyState = it.first;
 
 			pipelineID = screen->GetLevelMeshPipelineID(applyState.applyData, applyState.surfaceUniforms, applyState.material);
-			uniformsIndex = Mesh.Uniforms.Size();
 			textureMatrix = applyState.textureMatrix;
-			Mesh.Uniforms.Push(applyState.surfaceUniforms);
-			Mesh.Materials.Push(applyState.material);
-
+			uniforms = &applyState.surfaceUniforms;
+			material = &applyState.material;
 			foundDraw = true;
 			break;
 		}
-		state.mSortedLists.clear();
-		state.mVertices.Clear();
-		state.mIndexes.Clear();
 
 		if (!foundDraw)
 			continue;
+
+		int numVertices = 0;
+		int numIndexes = 0;
+		for (subsector_t* sub : flatpart.section->subsectors)
+		{
+			if (sub->numlines < 3)
+				continue;
+			numVertices += sub->numlines;
+			numIndexes += (sub->numlines - 2) * 3;
+		}
+
+		GeometryAllocInfo ginfo = AllocGeometry(numVertices, numIndexes);
+		UniformsAllocInfo uinfo = AllocUniforms(1);
+
+		*uinfo.Uniforms = *uniforms;
+		*uinfo.Materials = *material;
+
+		int uniformsIndex = uinfo.Start;
+		int vertIndex = ginfo.VertexStart;
+		int elementIndex = ginfo.IndexStart;
 
 		uint16_t sampleDimension = 0;
 		if (flatpart.ceiling)
@@ -692,8 +732,10 @@ void DoomLevelMesh::CreateFlatSurface(HWFlatDispatcher& disp, MeshBuilder& state
 			if (sub->numlines < 3)
 				continue;
 
-			int startVertIndex = Mesh.Vertices.Size();
-			int startElementIndex = Mesh.Indexes.Size();
+			int startVertIndex = vertIndex;
+			int startElementIndex = elementIndex;
+			vertIndex += sub->numlines;
+			elementIndex += (sub->numlines - 2) * 3;
 
 			for (int i = 0, end = sub->numlines; i < end; i++)
 			{
@@ -712,26 +754,26 @@ void DoomLevelMesh::CreateFlatSurface(HWFlatDispatcher& disp, MeshBuilder& state
 				ffv.lv = 0.0f;
 				ffv.lindex = -1.0f;
 
-				Mesh.Vertices.Push(ffv);
-				Mesh.UniformIndexes.Push(uniformsIndex);
+				*(ginfo.Vertices++) = ffv;
+				*(ginfo.UniformIndexes++) = uniformsIndex;
 			}
 
 			if (flatpart.ceiling)
 			{
 				for (int i = 2, count = sub->numlines; i < count; i++)
 				{
-					Mesh.Indexes.Push(startVertIndex);
-					Mesh.Indexes.Push(startVertIndex + i - 1);
-					Mesh.Indexes.Push(startVertIndex + i);
+					*(ginfo.Indexes++) = startVertIndex;
+					*(ginfo.Indexes++) = startVertIndex + i - 1;
+					*(ginfo.Indexes++) = startVertIndex + i;
 				}
 			}
 			else
 			{
 				for (int i = 2, count = sub->numlines; i < count; i++)
 				{
-					Mesh.Indexes.Push(startVertIndex + i);
-					Mesh.Indexes.Push(startVertIndex + i - 1);
-					Mesh.Indexes.Push(startVertIndex);
+					*(ginfo.Indexes++) = startVertIndex + i;
+					*(ginfo.Indexes++) = startVertIndex + i - 1;
+					*(ginfo.Indexes++) = startVertIndex;
 				}
 			}
 
