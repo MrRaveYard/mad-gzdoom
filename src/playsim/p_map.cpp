@@ -6235,7 +6235,7 @@ int P_RadiusAttack(AActor *bombspot, AActor *bombsource, int bombdamage, double 
 								if (flags & RADF_CIRCULARTHRUST)
 								{
 									auto dir = bombspot->Vec3To(thing);
-									dir.Z += (thing->Center() - thing->Z()) - (bombspot->Center() - bombspot->Z());
+									dir.Z += thing->CenterOffset() - bombspot->CenterOffset();
 
 									if (!dir.isZero())
 									{
