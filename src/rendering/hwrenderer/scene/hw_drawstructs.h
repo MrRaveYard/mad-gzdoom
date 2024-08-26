@@ -32,7 +32,6 @@ struct HWDecal;
 struct FSection;
 enum area_t : int;
 class HWDrawContext;
-struct DoomLevelMeshSurface;
 struct HWFlatDispatcher;
 
 enum HWRenderStyle
@@ -174,7 +173,7 @@ public:
 	vertex_t* vertexes[2];				// required for polygon splitting
 	FGameTexture* texture;
 	TArray<lightlist_t>* lightlist;
-	DoomLevelMeshSurface* surface;
+	int lightmaptile;
 
 	HWSeg glseg;
 	float ztop[2], zbottom[2];
@@ -411,6 +410,7 @@ public:
 	TArray<lightlist_t> *lightlist;
 	DRotator Angles;
 
+	bool nomipmap; // force the sprite to have no mipmaps (ensures tiny sprites in the distance stay crisp)
 
 	void SplitSprite(HWDrawInfo *di, FRenderState& state, sector_t * frontsector, bool translucent);
 	void PerformSpriteClipAdjustment(AActor *thing, const DVector2 &thingpos, float spriteheight);

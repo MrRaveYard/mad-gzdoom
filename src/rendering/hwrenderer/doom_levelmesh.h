@@ -2,6 +2,7 @@
 #pragma once
 
 #include "hw_levelmesh.h"
+#include "levelmeshhelper.h"
 #include "scene/hw_drawstructs.h"
 #include "common/rendering/hwrenderer/data/hw_meshbuilder.h"
 #include "tarray.h"
@@ -17,7 +18,7 @@ struct HWWallDispatcher;
 class DoomLevelMesh;
 class MeshBuilder;
 
-struct DoomLevelMeshSurface : public LevelMeshSurface
+struct DoomSurfaceInfo
 {
 	DoomLevelMeshSurfaceType Type = ST_NONE;
 	int TypeIndex = 0;
@@ -26,29 +27,51 @@ struct DoomLevelMeshSurface : public LevelMeshSurface
 	side_t* Side = nullptr;
 	sector_t* ControlSector = nullptr;
 
+	int NextSurface = -1;
+};
+
+struct GeometryFreeInfo
+{
+	GeometryFreeInfo(const GeometryAllocInfo& ginfo, int pipelineID, bool isPortal)
+	{
+		VertexStart = ginfo.VertexStart;
+		VertexCount = ginfo.VertexCount;
+		IndexStart = ginfo.IndexStart;
+		IndexCount = ginfo.IndexCount;
+		PipelineID = pipelineID;
+		IsPortal = isPortal;
+	}
+
+	int VertexStart = 0;
+	int VertexCount = 0;
+	int IndexStart = 0;
+	int IndexCount = 0;
 	int PipelineID = 0;
+	bool IsPortal = false;
 };
 
-struct SideSurfaceRange
+struct SideSurfaceBlock
 {
-	int StartSurface = 0;
-	int SurfaceCount = 0;
+	int FirstSurface = -1;
+	TArray<GeometryFreeInfo> Geometries;
+	TArray<UniformsAllocInfo> Uniforms;
+	TArray<HWWall> WallPortals;
+	bool InSidePortalsList = false;
 };
 
-struct FlatSurfaceRange
+struct FlatSurfaceBlock
 {
-	int StartSurface = 0;
-	int SurfaceCount = 0;
+	int FirstSurface = -1;
+	TArray<GeometryFreeInfo> Geometries;
+	TArray<UniformsAllocInfo> Uniforms;
 };
 
-class DoomLevelMesh : public LevelMesh
+class DoomLevelMesh : public LevelMesh, public UpdateLevelMesh
 {
 public:
 	DoomLevelMesh(FLevelLocals &doomMap);
 
-	LevelMeshSurface* GetSurface(int index) override { return &Surfaces[index]; }
-	unsigned int GetSurfaceIndex(const LevelMeshSurface* surface) const override { return (unsigned int)(ptrdiff_t)(static_cast<const DoomLevelMeshSurface*>(surface) - Surfaces.Data()); }
-	int GetSurfaceCount() override { return Surfaces.Size(); }
+	void PrintSurfaceInfo(const LevelMeshSurface* surface);
 
 	void BeginFrame(FLevelLocals& doomMap);
 	bool TraceSky(const FVector3& start, FVector3 direction, float dist);
@@ -56,9 +79,8 @@ public:
 
 	void BuildSectorGroups(const FLevelLocals& doomMap);
 
-	TArray<DoomLevelMeshSurface> Surfaces;
-	TArray<std::unique_ptr<DoomLevelMeshSurface* []>> PolyLMSurfaces;
-	TArray<HWWall> WallPortals;
+	TArray<int> SidePortals;
+	TArray<HWWall*> WallPortals;
 
 	TArray<int> sectorGroup; // index is sector, value is sectorGroup
 	TArray<int> sectorPortals[2]; // index is sector+plane, value is index into the portal list
@@ -66,34 +88,59 @@ public:
 
 	void CreateLights(FLevelLocals& doomMap);
 
+	void FloorHeightChanged(struct sector_t* sector) override;
+	void CeilingHeightChanged(struct sector_t* sector) override;
+	void MidTex3DHeightChanged(struct sector_t* sector) override;
+	void FloorTextureChanged(struct sector_t* sector) override;
+	void CeilingTextureChanged(struct sector_t* sector) override;
+	void SectorChangedOther(struct sector_t* sector) override;
+	void SideTextureChanged(struct side_t* side, int section) override;
+	void SectorLightChanged(struct sector_t* sector) override;
+	void SectorLightThinkerCreated(struct sector_t* sector, class DLighting* lightthinker) override;
+	void SectorLightThinkerDestroyed(struct sector_t* sector, class DLighting* lightthinker) override;
+
+	void Reset(const LevelMeshLimits& limits) override
+	{
+		LevelMesh::Reset(limits);
+		DoomSurfaceInfos.Resize(limits.MaxSurfaces);
+	}
+
 private:
 	void CreateSurfaces(FLevelLocals& doomMap);
+	void CreateLightList(FLevelLocals& doomMap, int surfaceIndex);
 
 	void UpdateSide(FLevelLocals& doomMap, unsigned int sideIndex);
 	void UpdateFlat(FLevelLocals& doomMap, unsigned int sectorIndex);
 
-	void SetSubsectorLightmap(DoomLevelMeshSurface* surface);
-	void SetSideLightmap(DoomLevelMeshSurface* surface);
+	void FreeSide(FLevelLocals& doomMap, unsigned int sideIndex);
+	void FreeFlat(FLevelLocals& doomMap, unsigned int sectorIndex);
 
-	void SortIndexes();
+	void UpdateWallPortals();
 
-	void CreateWallSurface(side_t* side, HWWallDispatcher& disp, MeshBuilder& state, TArray<HWWall>& list, bool isPortal, bool translucent);
-	void CreateFlatSurface(HWFlatDispatcher& disp, MeshBuilder& state, TArray<HWFlat>& list, bool isSky, bool translucent);
+	void SetSubsectorLightmap(int surfaceIndex);
+	void SetSideLightmap(int surfaceIndex);
 
-	void LinkSurfaces(FLevelLocals& doomMap);
+	void CreateWallSurface(side_t* side, HWWallDispatcher& disp, MeshBuilder& state, TArray<HWWall>& list, bool isPortal, bool translucent, unsigned int sectorIndex);
+	void CreateFlatSurface(HWFlatDispatcher& disp, MeshBuilder& state, TArray<HWFlat>& list, bool isSky, bool translucent, unsigned int sectorIndex);
 
 	BBox GetBoundsFromSurface(const LevelMeshSurface& surface) const;
 
-	int AddSurfaceToTile(const DoomLevelMeshSurface& surf, uint16_t sampleDimension);
-	int GetSampleDimension(const DoomLevelMeshSurface& surf, uint16_t sampleDimension);
+	int AddSurfaceToTile(const DoomSurfaceInfo& info, const LevelMeshSurface& surf, uint16_t sampleDimension, bool alwaysUpdate);
+	int GetSampleDimension(uint16_t sampleDimension);
 
 	void CreatePortals(FLevelLocals& doomMap);
-	std::pair<FLightNode*, int> GetSurfaceLightNode(const DoomLevelMeshSurface* doomsurf);
+	std::pair<FLightNode*, int> GetSurfaceLightNode(int surfaceIndex);
 
 	int GetLightIndex(FDynamicLight* light, int portalgroup);
 
-	TArray<SideSurfaceRange> Sides;
-	TArray<FlatSurfaceRange> Flats;
+	TArray<DoomSurfaceInfo> DoomSurfaceInfos;
+	TArray<std::unique_ptr<DoomSurfaceInfo* []>> PolyDoomSurfaceInfos;
+
+	TArray<SideSurfaceBlock> Sides;
+	TArray<FlatSurfaceBlock> Flats;
+	TArray<side_t*> PolySides;
+
 	std::map<LightmapTileBinding, int> bindings;
 	MeshBuilder state;
+	bool LightsCreated = false;
 };

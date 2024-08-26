@@ -69,13 +69,20 @@ if( WIN32 )
 		setupapi
 		oleaut32
 		dbghelp
-		legacy_stdio_definitions )
+		dxguid
+		dwmapi
+	)
+
+	if( NOT MINGW )
+		list( APPEND PROJECT_LIBRARIES legacy_stdio_definitions )
+	endif()
 
 	if( DEM_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 		if( DX_dxguid_LIBRARY )
 			list( APPEND PROJECT_LIBRARIES "${DX_dxguid_LIBRARY}" )
 		endif()
 	endif()
+	
 else()
 	if( APPLE )
 		set( NO_GTK ON )
@@ -823,6 +830,7 @@ set (PCH_SOURCES
 	st_stuff.cpp
 	r_data/v_palette.cpp
 	wi_stuff.cpp
+	levelmeshhelper.cpp
 	gamedata/a_keys.cpp
 	gamedata/a_weapons.cpp
 	gamedata/decallib.cpp
