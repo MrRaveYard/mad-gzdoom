@@ -32,22 +32,26 @@ struct DoomSurfaceInfo
 
 struct GeometryFreeInfo
 {
-	GeometryFreeInfo(const GeometryAllocInfo& ginfo, int pipelineID, bool isPortal)
+	GeometryFreeInfo(const GeometryAllocInfo& ginfo)
 	{
 		VertexStart = ginfo.VertexStart;
 		VertexCount = ginfo.VertexCount;
 		IndexStart = ginfo.IndexStart;
 		IndexCount = ginfo.IndexCount;
-		PipelineID = pipelineID;
-		IsPortal = isPortal;
 	}
 
 	int VertexStart = 0;
 	int VertexCount = 0;
 	int IndexStart = 0;
 	int IndexCount = 0;
+};
+
+struct DrawRangeInfo
+{
 	int PipelineID = 0;
-	bool IsPortal = false;
+	LevelMeshDrawType DrawType = {};
+	int DrawIndexStart = 0;
+	int DrawIndexCount = 0;
 };
 
 struct SideSurfaceBlock
@@ -57,6 +61,8 @@ struct SideSurfaceBlock
 	TArray<UniformsAllocInfo> Uniforms;
 	TArray<HWWall> WallPortals;
 	bool InSidePortalsList = false;
+	TArray<DrawRangeInfo> DrawRanges;
+	bool InUpdateList = false;
 };
 
 struct FlatSurfaceBlock
@@ -64,6 +70,8 @@ struct FlatSurfaceBlock
 	int FirstSurface = -1;
 	TArray<GeometryFreeInfo> Geometries;
 	TArray<UniformsAllocInfo> Uniforms;
+	TArray<DrawRangeInfo> DrawRanges;
+	bool InUpdateList = false;
 };
 
 class DoomLevelMesh : public LevelMesh, public UpdateLevelMesh
@@ -105,12 +113,23 @@ public:
 		DoomSurfaceInfos.Resize(limits.MaxSurfaces);
 	}
 
+	struct Stats
+	{
+		int FlatsUpdated = 0;
+		int SidesUpdated = 0;
+		int Portals = 0;
+	};
+	Stats LastFrameStats, CurFrameStats;
+
 private:
 	void CreateSurfaces(FLevelLocals& doomMap);
 	void CreateLightList(FLevelLocals& doomMap, int surfaceIndex);
 
-	void UpdateSide(FLevelLocals& doomMap, unsigned int sideIndex);
-	void UpdateFlat(FLevelLocals& doomMap, unsigned int sectorIndex);
+	void UpdateSide(unsigned int sideIndex);
+	void UpdateFlat(unsigned int sectorIndex);
+
+	void CreateSide(FLevelLocals& doomMap, unsigned int sideIndex);
+	void CreateFlat(FLevelLocals& doomMap, unsigned int sectorIndex);
 
 	void FreeSide(FLevelLocals& doomMap, unsigned int sideIndex);
 	void FreeFlat(FLevelLocals& doomMap, unsigned int sectorIndex);
@@ -120,8 +139,8 @@ private:
 	void SetSubsectorLightmap(int surfaceIndex);
 	void SetSideLightmap(int surfaceIndex);
 
-	void CreateWallSurface(side_t* side, HWWallDispatcher& disp, MeshBuilder& state, TArray<HWWall>& list, bool isPortal, bool translucent, unsigned int sectorIndex);
-	void CreateFlatSurface(HWFlatDispatcher& disp, MeshBuilder& state, TArray<HWFlat>& list, bool isSky, bool translucent, unsigned int sectorIndex);
+	void CreateWallSurface(side_t* side, HWWallDispatcher& disp, MeshBuilder& state, TArray<HWWall>& list, LevelMeshDrawType drawType, bool translucent, unsigned int sectorIndex);
+	void CreateFlatSurface(HWFlatDispatcher& disp, MeshBuilder& state, TArray<HWFlat>& list, LevelMeshDrawType drawType, bool translucent, unsigned int sectorIndex);
 
 	BBox GetBoundsFromSurface(const LevelMeshSurface& surface) const;
 
@@ -133,12 +152,19 @@ private:
 
 	int GetLightIndex(FDynamicLight* light, int portalgroup);
 
+	void AddToDrawList(TArray<DrawRangeInfo>& drawRanges, int pipelineID, int indexStart, int indexCount, LevelMeshDrawType drawType);
+	void RemoveFromDrawList(const TArray<DrawRangeInfo>& drawRanges);
+	void SortDrawLists();
+
 	TArray<DoomSurfaceInfo> DoomSurfaceInfos;
 	TArray<std::unique_ptr<DoomSurfaceInfo* []>> PolyDoomSurfaceInfos;
 
 	TArray<SideSurfaceBlock> Sides;
 	TArray<FlatSurfaceBlock> Flats;
 	TArray<side_t*> PolySides;
+
+	TArray<int> SideUpdateList;
+	TArray<int> FlatUpdateList;
 
 	std::map<LightmapTileBinding, int> bindings;
 	MeshBuilder state;

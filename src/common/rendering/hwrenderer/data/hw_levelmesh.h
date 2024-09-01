@@ -13,6 +13,7 @@
 #include "hw_surfaceuniforms.h"
 #include "engineerrors.h"
 #include <memory>
+#include <unordered_map>
 
 #include <dp_rect_pack.h>
 typedef dp::rect_pack::RectPacker<int> RectPacker;
@@ -64,6 +65,15 @@ struct LevelMeshLimits
 	int MaxSurfaces = 0;
 	int MaxUniforms = 0;
 	int MaxIndexes = 0;
+};
+
+enum class LevelMeshDrawType
+{
+	Opaque,
+	Masked,
+	Portal,
+	Translucent,
+	NumDrawTypes
 };
 
 class LevelMesh
@@ -166,10 +176,13 @@ public:
 		Mesh.Indexes.Resize(limits.MaxIndexes);
 		Mesh.SurfaceIndexes.Resize(limits.MaxIndexes / 3 + 1);
 
+		Mesh.DrawIndexes.Resize(limits.MaxIndexes);
+
 		FreeLists.Vertex.Clear(); FreeLists.Vertex.Push({ 0, limits.MaxVertices });
 		FreeLists.Index.Clear(); FreeLists.Index.Push({ 0, limits.MaxIndexes });
 		FreeLists.Uniforms.Clear(); FreeLists.Uniforms.Push({ 0, limits.MaxUniforms });
 		FreeLists.Surface.Clear(); FreeLists.Surface.Push({ 0, limits.MaxSurfaces });
+		FreeLists.DrawIndex.Clear(); FreeLists.DrawIndex.Push({ 0, limits.MaxIndexes });
 	}
 
 	// Data placed in GPU buffers
@@ -193,6 +206,9 @@ public:
 		TArray<int> SurfaceIndexes;
 		int IndexCount = 0; // Index range filled with data
 
+		// Indexes sorted by pipeline
+		TArray<uint32_t> DrawIndexes;
+
 		// GPU buffer size for collision nodes
 		int MaxNodes = 0;
 	} Mesh;
@@ -210,6 +226,7 @@ public:
 		TArray<MeshBufferRange> Portals;
 		TArray<MeshBufferRange> Light;
 		TArray<MeshBufferRange> LightIndex;
+		TArray<MeshBufferRange> DrawIndex;
 	} UploadRanges;
 
 	// Ranges in mesh currently not in use
@@ -219,14 +236,14 @@ public:
 		TArray<MeshBufferRange> Index;
 		TArray<MeshBufferRange> Uniforms;
 		TArray<MeshBufferRange> Surface;
+		TArray<MeshBufferRange> DrawIndex;
 	} FreeLists;
 
 	// Data structure for doing mesh traces on the CPU
 	std::unique_ptr<TriangleMeshShape> Collision;
 
 	// Draw index ranges for rendering the level mesh, grouped by pipeline
-	std::unordered_map<int, TArray<MeshBufferRange>> DrawList;
-	std::unordered_map<int, TArray<MeshBufferRange>> PortalList;
+	std::unordered_map<int, TArray<MeshBufferRange>> DrawList[(int)LevelMeshDrawType::NumDrawTypes];
 
 	// Lightmap atlas
 	int LMTextureCount = 0;
