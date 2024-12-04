@@ -169,6 +169,7 @@ IMPLEMENT_POINTERS_START(AActor)
 	IMPLEMENT_POINTER(target)
 	IMPLEMENT_POINTER(lastenemy)
 	IMPLEMENT_POINTER(tracer)
+	IMPLEMENT_POINTER(damagesource)
 	IMPLEMENT_POINTER(goal)
 	IMPLEMENT_POINTER(LastLookActor)
 	IMPLEMENT_POINTER(Inventory)
@@ -218,6 +219,7 @@ void AActor::Serialize(FSerializer &arc)
 		A("angles", Angles)
 		A("frame", frame)
 		A("scale", Scale)
+		A("nolocalrender", NoLocalRender) // Note: This will probably be removed later since a better solution is needed
 		A("renderstyle", RenderStyle)
 		A("renderflags", renderflags)
 		A("renderflags2", renderflags2)
@@ -290,6 +292,7 @@ void AActor::Serialize(FSerializer &arc)
 		A("inventoryid", InventoryID)
 		A("floatbobphase", FloatBobPhase)
 		A("floatbobstrength", FloatBobStrength)
+		A("floatbobfactor", FloatBobFactor)
 		A("translation", Translation)
 		A("bloodcolor", BloodColor)
 		A("bloodtranslation", BloodTranslation)
@@ -318,6 +321,7 @@ void AActor::Serialize(FSerializer &arc)
 		A("wallbouncefactor", wallbouncefactor)
 		A("bouncecount", bouncecount)
 		A("maxtargetrange", maxtargetrange)
+		A("missilechancemult", missilechancemult)
 		A("meleethreshold", meleethreshold)
 		A("meleerange", meleerange)
 		A("damagetype", DamageType)
@@ -399,7 +403,8 @@ void AActor::Serialize(FSerializer &arc)
 		("unmorphtime", UnmorphTime)
 		("morphflags", MorphFlags)
 		("premorphproperties", PremorphProperties)
-		("morphexitflash", MorphExitFlash);
+		("morphexitflash", MorphExitFlash)
+		("damagesource", damagesource);
 
 
 		SerializeTerrain(arc, "floorterrain", floorterrain, &def->floorterrain);
@@ -799,7 +804,7 @@ DEFINE_ACTION_FUNCTION(AActor, GiveInventoryType)
 
 void AActor::CopyFriendliness (AActor *other, bool changeTarget, bool resetHealth)
 {
-	Level->total_monsters -= CountsAsKill();
+	if (health > 0) Level->total_monsters -= CountsAsKill();
 	TIDtoHate = other->TIDtoHate;
 	LastLookActor = other->LastLookActor;
 	LastLookPlayerNumber = other->LastLookPlayerNumber;
@@ -814,7 +819,7 @@ void AActor::CopyFriendliness (AActor *other, bool changeTarget, bool resetHealt
 		LastHeard = target = other->target;
 	}	
 	if (resetHealth) health = SpawnHealth();	
-	Level->total_monsters += CountsAsKill();
+	if (health > 0) Level->total_monsters += CountsAsKill();
 }
 
 DEFINE_ACTION_FUNCTION(AActor, CopyFriendliness)
@@ -1444,7 +1449,7 @@ FSerializer &Serialize(FSerializer &arc, const char *key, AnimModelOverride &amo
 	return arc;
 }
 
-FSerializer &Serialize(FSerializer &arc, const char *key, struct AnimOverride &ao, struct AnimOverride *def)
+FSerializer &Serialize(FSerializer &arc, const char *key, struct ModelAnim &ao, struct ModelAnim *def)
 {
 	arc.BeginObject(key);
 	arc("firstFrame", ao.firstFrame);
@@ -1455,6 +1460,64 @@ FSerializer &Serialize(FSerializer &arc, const char *key, struct AnimOverride &a
 	arc("framerate", ao.framerate);
 	arc("startTic", ao.startTic);
 	arc("switchOffset", ao.switchOffset);
+	arc.EndObject();
+	return arc;
+}
+
+FSerializer &Serialize(FSerializer &arc, const char *key, ModelAnimFrame &ao, ModelAnimFrame *def)
+{
+	arc.BeginObject(key);
+	if(arc.isReading())
+	{
+		if(arc.HasKey("firstFrame"))
+		{ // legacy save, clear interpolation
+			ao = nullptr;
+		}
+		else
+		{
+			FString type = "nullptr";
+			arc("type", type);
+			if(type.Compare("nullptr") == 0)
+			{
+				ao = nullptr;
+			}
+			else if(type.Compare("interp") == 0)
+			{
+				ModelAnimFrameInterp tmp;
+				arc("inter", tmp.inter);
+				arc("frame1", tmp.frame1);
+				arc("frame2", tmp.frame2);
+				ao = tmp;
+			}
+			else if(type.Compare("precalcIQM") == 0)
+			{
+				//TODO, unreachable
+				ao = nullptr;
+			}
+		}
+	}
+	else // if(arc.isWriting())
+	{
+		if(std::holds_alternative<std::nullptr_t>(ao))
+		{
+			FString tmp = "nullptr";
+			arc("type", tmp);
+		}
+		else if(std::holds_alternative<ModelAnimFrameInterp>(ao))
+		{
+			FString type = "interp";
+			arc("type", type);
+			arc("inter", std::get<ModelAnimFrameInterp>(ao).inter);
+			arc("frame1", std::get<ModelAnimFrameInterp>(ao).frame1);
+			arc("frame2", std::get<ModelAnimFrameInterp>(ao).frame2);
+		}
+		else if(std::holds_alternative<ModelAnimFramePrecalculatedIQM>(ao))
+		{
+			//TODO
+			FString type = "nullptr";
+			arc("type", type);
+		}
+	}
 	arc.EndObject();
 	return arc;
 }
@@ -3863,7 +3926,7 @@ void AActor::Tick ()
 				special2++;
 			}
 
-			if(flags9 & MF9_DECOUPLEDANIMATIONS && modelData && !(modelData->curAnim.flags & ANIMOVERRIDE_NONE))
+			if(flags9 & MF9_DECOUPLEDANIMATIONS && modelData && !(modelData->curAnim.flags & MODELANIM_NONE))
 			{
 				modelData->curAnim.startTic += 1;
 			}
@@ -3916,7 +3979,7 @@ void AActor::Tick ()
 				special2++;
 			}
 
-			if(flags9 & MF9_DECOUPLEDANIMATIONS && modelData && !(modelData->curAnim.flags & ANIMOVERRIDE_NONE))
+			if(flags9 & MF9_DECOUPLEDANIMATIONS && modelData && !(modelData->curAnim.flags & MODELANIM_NONE))
 			{
 				modelData->curAnim.startTic += 1;
 			}
@@ -5759,6 +5822,7 @@ AActor *FLevelLocals::SpawnMapThing (FMapThing *mthing, int position)
 	AActor *mobj;
 
 	bool spawnmulti = G_SkillProperty(SKILLP_SpawnMulti) || !!(dmflags2 & DF2_ALWAYS_SPAWN_MULTI);
+	bool spawnmulti_cooponly = G_SkillProperty(SKILLP_SpawnMultiCoopOnly);
 
 	if (mthing->EdNum == 0 || mthing->EdNum == -1)
 		return NULL;
@@ -5839,9 +5903,9 @@ AActor *FLevelLocals::SpawnMapThing (FMapThing *mthing, int position)
 		{
 			mask = MTF_COOPERATIVE;
 		}
-		else if (spawnmulti)
+		else if (spawnmulti || spawnmulti_cooponly)
 		{
-			mask = MTF_COOPERATIVE|MTF_SINGLE;
+			mask = spawnmulti_cooponly ? MTF_COOPERATIVE : (MTF_COOPERATIVE|MTF_SINGLE);
 		}
 		else
 		{
@@ -6111,8 +6175,6 @@ AActor *FLevelLocals::SpawnMapThing (FMapThing *mthing, int position)
 	if (mthing->fillcolor)
 		mobj->fillcolor = (mthing->fillcolor & 0xffffff) | (ColorMatcher.Pick((mthing->fillcolor & 0xff0000) >> 16,
 			(mthing->fillcolor & 0xff00) >> 8, (mthing->fillcolor & 0xff)) << 24);
-	if (mthing->SoftShadowRadius >= 0.0)
-		mobj->SoftShadowRadius = mthing->SoftShadowRadius;
 
 	// allow color strings for lights and reshuffle the args for spot lights
 	if (i->IsDescendantOf(NAME_DynamicLight))
@@ -6135,6 +6197,35 @@ AActor *FLevelLocals::SpawnMapThing (FMapThing *mthing, int position)
 		{
 			mobj->AngleVar(NAME_SpotInnerAngle) = DAngle::fromDeg(mthing->args[1]);
 			mobj->AngleVar(NAME_SpotOuterAngle) = DAngle::fromDeg(mthing->args[2]);
+		}
+
+		if (mthing->SoftShadowRadius >= 0.0)
+		{
+			mobj->FloatVar(NAME_SoftShadowRadius) = mthing->SoftShadowRadius;
+		}
+		else
+		{
+			mobj->FloatVar(NAME_SoftShadowRadius) = 5.0;
+		}
+
+		if (mthing->LightLinearity > 0.0)
+		{
+			mobj->FloatVar(NAME_LightLinearity) = mthing->LightLinearity;
+		}
+
+		if (mthing->LightNoShadowMap)
+		{
+			mobj->IntVar(NAME_lightflags) |= LF_NOSHADOWMAP;
+		}
+
+		if (mthing->LightDontLightActors)
+		{
+			mobj->IntVar(NAME_lightflags) |= LF_DONTLIGHTACTORS;
+		}
+
+		if (mthing->LightDontLightMap)
+		{
+			mobj->IntVar(NAME_lightflags) |= LF_DONTLIGHTMAP;
 		}
 	}
 
@@ -6221,8 +6312,14 @@ AActor *P_SpawnPuff (AActor *source, PClassActor *pufftype, const DVector3 &pos1
 	if ( puff && (puff->flags5 & MF5_PUFFGETSOWNER))
 		puff->target = source;
 	
+	// [AA] Track the source of the attack unconditionally in a separate field.
+	puff->damagesource = source;
+	
 	// Angle is the opposite of the hit direction (i.e. the puff faces the source.)
 	puff->Angles.Yaw = hitdir + DAngle::fromDeg(180);
+
+	// [AA] Mark the spawned actor as a puff with a flag.
+	puff->flags9 |= MF9_ISPUFF;
 
 	// If a puff has a crash state and an actor was not hit,
 	// it will enter the crash state. This is used by the StrifeSpark

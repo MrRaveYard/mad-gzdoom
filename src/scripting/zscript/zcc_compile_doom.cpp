@@ -724,8 +724,15 @@ void ZCCDoomCompiler::ProcessDefaultProperty(PClassActor *cls, ZCC_PropertyStmt 
 	}
 	else if (namenode->SiblingNext->SiblingNext == namenode)
 	{
+		FName name(namenode->Id);
+
+		if(name == NAME_self)
+		{
+			name = cls->TypeName;
+		}
+
 		// a two-name property
-		propname << FName(namenode->Id).GetChars() << "." << FName(static_cast<ZCC_Identifier *>(namenode->SiblingNext)->Id).GetChars();
+		propname << name.GetChars() << "." << FName(static_cast<ZCC_Identifier *>(namenode->SiblingNext)->Id).GetChars();
 	}
 	else
 	{
@@ -784,6 +791,13 @@ void ZCCDoomCompiler::ProcessDefaultFlag(PClassActor *cls, ZCC_FlagStmt *flg)
 	else if (namenode->SiblingNext->SiblingNext == namenode)
 	{
 		// a two-name flag
+
+		if(namenode->Id == NAME_self)
+		{
+			n1 = cls->TypeName.GetChars();
+		}
+
+
 		n2 = FName(static_cast<ZCC_Identifier *>(namenode->SiblingNext)->Id).GetChars();
 	}
 	else
@@ -795,13 +809,14 @@ void ZCCDoomCompiler::ProcessDefaultFlag(PClassActor *cls, ZCC_FlagStmt *flg)
 	auto fd = FindFlag(cls, n1, n2, true);
 	if (fd != nullptr)
 	{
-		if (fd->varflags & VARF_Deprecated)
+		if ((fd->varflags & VARF_Deprecated) && fd->deprecationVersion <= this->mVersion)
 		{
-			Warn(flg, "Deprecated flag '%s%s%s' used", n1, n2 ? "." : "", n2 ? n2 : "");
+			Warn(flg, "Deprecated flag '%s%s%s' used, deprecated since %d.%d.%d", n1, n2 ? "." : "", n2 ? n2 : "", 
+				fd->deprecationVersion.major, fd->deprecationVersion.minor, fd->deprecationVersion.revision);
 		}
 		if (fd->structoffset == -1)
 		{
-			HandleDeprecatedFlags((AActor*)cls->Defaults, cls, flg->set, fd->flagbit);
+			HandleDeprecatedFlags((AActor*)cls->Defaults, flg->set, fd->flagbit);
 		}
 		else
 		{

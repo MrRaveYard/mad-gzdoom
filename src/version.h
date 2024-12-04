@@ -55,7 +55,7 @@ const char *GetVersionString();
 
 // These are for zscript versioning.
 #define ZSCRIPT_VER_MAJOR 4
-#define ZSCRIPT_VER_MINOR 12
+#define ZSCRIPT_VER_MINOR 13
 #define ZSCRIPT_VER_REVISION 0
 
 // This should always refer to the VkDoom version a derived port is based on and not reflect the derived port's version number!
@@ -120,7 +120,7 @@ const char *GetVersionString();
 #define GAME_DIR ".config/" GAMENAMELOWERCASE
 #endif
 
-#define DEFAULT_DISCORD_APP_ID "951303644597325885"
+#define DEFAULT_DISCORD_APP_ID "1303107445471838258"
 
 const int SAVEPICWIDTH = 216;
 const int SAVEPICHEIGHT = 162;

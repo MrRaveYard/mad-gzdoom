@@ -193,6 +193,7 @@ public:
 		mSurfaceUniforms.uLightFactor = 0.0f;
 		mSurfaceUniforms.uFogDensity = 0.0f;
 		mSurfaceUniforms.uLightLevel = -1.0f;
+		mSurfaceUniforms.uDepthFadeThreshold = 0.0f;
 		mSpecialEffect = EFF_NONE;
 		mLightIndex = -1;
 		mBoneIndexBase = -1;
@@ -645,7 +646,6 @@ public:
 		matrices.mPalLightLevels = palLightLevels;
 		matrices.mClipLine.X = -10000000.0f;
 		matrices.mShadowFilter = gl_light_shadow_filter;
-		matrices.mLightBlendMode = 0;
 		matrices.mProjectionMatrix.ortho(0, (float)width, (float)height, 0, -1.0f, 1.0f);
 		matrices.CalcDependencies();
 		return SetViewpoint(matrices);
@@ -698,6 +698,7 @@ public:
 	}
 
 	// Draw level mesh
+	virtual void DispatchLightTiles(const VSMatrix& worldToView, float m5) { }
 	virtual void DrawLevelMesh(LevelMeshDrawType drawType, bool noFragmentShader) { }
 	virtual int GetNextQueryIndex() { return 0; }
 	virtual void BeginQuery() { }

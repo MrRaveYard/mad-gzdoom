@@ -34,6 +34,7 @@ struct GeometryAllocInfo
 struct UniformsAllocInfo
 {
 	SurfaceUniforms* Uniforms = nullptr;
+	SurfaceLightUniforms* LightUniforms = nullptr;
 	FMaterialState* Materials = nullptr;
 	int Start = 0;
 	int Count = 0;
@@ -49,6 +50,13 @@ struct LightAllocInfo
 {
 	LevelMeshLight* Light = nullptr;
 	int Index = 0;
+};
+
+struct LightListAllocInfo
+{
+	int32_t* List = nullptr;
+	int Start = 0;
+	int Count = 0;
 };
 
 struct MeshBufferRange
@@ -95,10 +103,13 @@ public:
 	GeometryAllocInfo AllocGeometry(int vertexCount, int indexCount);
 	UniformsAllocInfo AllocUniforms(int count);
 	SurfaceAllocInfo AllocSurface();
+	LightAllocInfo AllocLight();
+	LightListAllocInfo AllocLightList(int count);
 
 	void FreeGeometry(int vertexStart, int vertexCount, int indexStart, int indexCount);
 	void FreeUniforms(int start, int count);
 	void FreeSurface(unsigned int surfaceIndex);
+	void FreeLightList(int start, int count);
 
 	// Sets the sizes of all the GPU buffers and empties the mesh
 	virtual void Reset(const LevelMeshLimits& limits);
@@ -115,11 +126,13 @@ public:
 		// Surface info
 		TArray<LevelMeshSurface> Surfaces;
 		TArray<SurfaceUniforms> Uniforms;
+		TArray<SurfaceLightUniforms> LightUniforms;
 		TArray<FMaterialState> Materials;
 		TArray<int32_t> LightIndexes;
 
 		// Lights
 		TArray<LevelMeshLight> Lights;
+		TArray<FVector4> DynLights;
 
 		// Index data
 		TArray<uint32_t> Indexes;
@@ -129,8 +142,9 @@ public:
 		// Indexes sorted by pipeline
 		TArray<uint32_t> DrawIndexes;
 
-		// GPU buffer size for collision nodes
-		int MaxNodes = 0;
+		// Acceleration structure nodes for when the GPU doesn't support rayquery
+		TArray<CollisionNode> Nodes;
+		int RootNode = 0;
 	} Mesh;
 
 	// Ranges in mesh that have changed since last upload
@@ -143,9 +157,11 @@ public:
 		TArray<MeshBufferRange> Surface;
 		TArray<MeshBufferRange> UniformIndexes;
 		TArray<MeshBufferRange> Uniforms;
+		TArray<MeshBufferRange> LightUniforms;
 		TArray<MeshBufferRange> Portals;
 		TArray<MeshBufferRange> Light;
 		TArray<MeshBufferRange> LightIndex;
+		TArray<MeshBufferRange> DynLight;
 		TArray<MeshBufferRange> DrawIndex;
 	} UploadRanges;
 
@@ -156,36 +172,39 @@ public:
 		TArray<MeshBufferRange> Index;
 		TArray<MeshBufferRange> Uniforms;
 		TArray<MeshBufferRange> Surface;
+		TArray<MeshBufferRange> Light;
+		TArray<MeshBufferRange> LightIndex;
 		TArray<MeshBufferRange> DrawIndex;
 	} FreeLists;
 
 	// Data structure for doing mesh traces on the CPU
-	std::unique_ptr<TriangleMeshShape> Collision;
+	std::unique_ptr<CPUAccelStruct> Collision;
 
 	// Draw index ranges for rendering the level mesh, grouped by pipeline
 	std::unordered_map<int, TArray<MeshBufferRange>> DrawList[(int)LevelMeshDrawType::NumDrawTypes];
 
-	// Lightmap atlas
-	int LMTextureCount = 0;
-	int LMTextureSize = 1024;
-	TArray<uint16_t> LMTextureData;
+	// Lightmap tiles and their locations in the texture atlas
+	struct
+	{
+		int TextureCount = 0;
+		int TextureSize = 1024;
+		TArray<uint16_t> TextureData;
+		uint16_t SampleDistance = 8;
+		TArray<LightmapTile> Tiles;
+		bool StaticAtlasPacked = false;
+		int DynamicTilesStart = 0;
+		TArray<int> DynamicSurfaces;
+	} Lightmap;
 
-	uint16_t LightmapSampleDistance = 16;
-
-	TArray<LightmapTile> LightmapTiles;
-	bool LMAtlasPacked = false; // Tile sizes can't be changed anymore
-
-	uint32_t AtlasPixelCount() const { return uint32_t(LMTextureCount * LMTextureSize * LMTextureSize); }
-
-	void UpdateCollision();
-	void BuildTileSurfaceLists();
-	void SetupTileTransforms();
-	void PackLightmapAtlas(int lightmapStartIndex);
+	uint32_t AtlasPixelCount() const { return uint32_t(Lightmap.TextureCount * Lightmap.TextureSize * Lightmap.TextureSize); }
+	void PackStaticLightmapAtlas();
+	void ClearDynamicLightmapAtlas();
+	void PackDynamicLightmapAtlas();
 
 	void AddEmptyMesh();
 	
 	void UploadPortals();
-	void UploadCollision();
+	void CreateCollision();
 
 	void AddRange(TArray<MeshBufferRange>& ranges, MeshBufferRange range);
 	void RemoveRange(TArray<MeshBufferRange>& ranges, MeshBufferRange range);
@@ -229,10 +248,31 @@ inline UniformsAllocInfo LevelMesh::AllocUniforms(int count)
 	info.Start = RemoveRange(FreeLists.Uniforms, count);
 	info.Count = count;
 	info.Uniforms = &Mesh.Uniforms[info.Start];
+	info.LightUniforms = &Mesh.LightUniforms[info.Start];
 	info.Materials = &Mesh.Materials[info.Start];
 
 	AddRange(UploadRanges.Uniforms, { info.Start, info.Start + info.Count });
+	AddRange(UploadRanges.LightUniforms, { info.Start, info.Start + info.Count });
 
+	return info;
+}
+
+inline LightListAllocInfo LevelMesh::AllocLightList(int count)
+{
+	LightListAllocInfo info;
+	info.Start = RemoveRange(FreeLists.LightIndex, count);
+	info.Count = count;
+	info.List = &Mesh.LightIndexes[info.Start];
+	AddRange(UploadRanges.LightIndex, { info.Start, info.Start + info.Count });
+	return info;
+}
+
+inline LightAllocInfo LevelMesh::AllocLight()
+{
+	LightAllocInfo info;
+	info.Index = RemoveRange(FreeLists.Light, 1);
+	info.Light = &Mesh.Lights[info.Index];
+	AddRange(UploadRanges.Light, { info.Index, info.Index + 1 });
 	return info;
 }
 
@@ -263,10 +303,13 @@ inline void LevelMesh::FreeUniforms(int start, int count)
 	AddRange(FreeLists.Uniforms, { start, start + count });
 }
 
+inline void LevelMesh::FreeLightList(int start, int count)
+{
+	AddRange(FreeLists.LightIndex, { start, start + count });
+}
+
 inline void LevelMesh::FreeSurface(unsigned int surfaceIndex)
 {
-	// To do: remove the surface from the surface tile, if attached
-
 	AddRange(FreeLists.Surface, { (int)surfaceIndex, (int)surfaceIndex + 1 });
 }
 
@@ -274,13 +317,6 @@ inline void LevelMesh::UploadPortals()
 {
 	UploadRanges.Portals.Clear();
 	AddRange(UploadRanges.Portals, { 0, (int)Portals.Size() });
-}
-
-inline void LevelMesh::UploadCollision()
-{
-	UploadRanges.Node.Clear();
-	if (Collision)
-		UploadRanges.Node.Push({ 0, (int)Collision->get_nodes().size() });
 }
 
 inline void LevelMesh::AddRange(TArray<MeshBufferRange>& ranges, MeshBufferRange range)

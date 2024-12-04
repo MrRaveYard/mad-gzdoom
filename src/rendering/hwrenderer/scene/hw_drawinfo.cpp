@@ -111,7 +111,10 @@ void HWDrawInfo::StartScene(FRenderViewpoint &parentvp, HWViewpointUniforms *uni
 		VPUniforms.mProjectionMatrix.loadIdentity();
 		VPUniforms.mViewMatrix.loadIdentity();
 		VPUniforms.mNormalViewMatrix.loadIdentity();
+		VPUniforms.mViewOffsetX = -screen->mSceneViewport.left;
+		VPUniforms.mViewOffsetY = -screen->mSceneViewport.top;
 		VPUniforms.mViewHeight = viewheight;
+		VPUniforms.mLightTilesWidth = (screen->mScreenViewport.width + 63) / 64;
 		if (lightmode == ELightMode::Build)
 		{
 			VPUniforms.mGlobVis = 1 / 64.f;
@@ -124,7 +127,6 @@ void HWDrawInfo::StartScene(FRenderViewpoint &parentvp, HWViewpointUniforms *uni
 		}
 		VPUniforms.mClipLine.X = -10000000.0f;
 		VPUniforms.mShadowFilter = static_cast<int>(gl_light_shadow_filter);
-		VPUniforms.mLightBlendMode = (level.info ? (int)level.info->lightblendmode : 0);
 	}
 	mClipper->SetViewpoint(Viewpoint);
 	vClipper->SetViewpoint(Viewpoint);
@@ -319,9 +321,17 @@ angle_t HWDrawInfo::FrustumAngle()
 {
 	// If pitch is larger than this you can look all around at an FOV of 90 degrees
 	if (fabs(Viewpoint.HWAngles.Pitch.Degrees()) > 89.0)  return 0xffffffff;
+	else if (fabs(Viewpoint.HWAngles.Pitch.Degrees()) > 46.0 && !Viewpoint.IsAllowedOoB())  return 0xffffffff; // Just like 4.12.2 and older did
+	int aspMult = AspectMultiplier(r_viewwindow.WidescreenRatio); // 48 == square window
+	double absPitch = fabs(Viewpoint.HWAngles.Pitch.Degrees());
+	 // Smaller aspect ratios still clip too much. Need a better solution
+	if (aspMult > 36 && absPitch > 30.0)  return 0xffffffff;
+	else if (aspMult > 40 && absPitch > 25.0)  return 0xffffffff;
+	else if (aspMult > 45 && absPitch > 20.0)  return 0xffffffff;
+	else if (aspMult > 47 && absPitch > 10.0) return 0xffffffff;
 
 	double xratio = r_viewwindow.FocalTangent / Viewpoint.PitchCos;
-	double floatangle = 0.035 + atan ( xratio ) * 48.0 / AspectMultiplier(r_viewwindow.WidescreenRatio); // this is radians
+	double floatangle = 0.05 + atan ( xratio ) * 48.0 / aspMult; // this is radians
 	angle_t a1 = DAngle::fromRad(floatangle).BAMs();
 
 	if (a1 >= ANGLE_90) return 0xffffffff;
@@ -433,7 +443,7 @@ void HWDrawInfo::CreateScene(bool drawpsprites, FRenderState& state)
 		state.SetColorMask(false);
 		state.SetCulling(Cull_CW);
 		state.DrawLevelMesh(LevelMeshDrawType::Opaque, true);
-		state.DrawLevelMesh(LevelMeshDrawType::Masked, false); // To do: properly mark wall top/bottom as opaque so we don't need this
+		state.DrawLevelMesh(LevelMeshDrawType::Masked, true);
 		if (gl_portals)
 		{
 			state.SetDepthBias(1, 128);
@@ -470,6 +480,8 @@ void HWDrawInfo::CreateScene(bool drawpsprites, FRenderState& state)
 		state.SetDepthMask(true);
 		int queryEnd = state.GetNextQueryIndex();
 
+		state.DispatchLightTiles(VPUniforms.mViewMatrix, VPUniforms.mProjectionMatrix.get()[5]);
+
 		// draw opaque level so the GPU has something to do while we examine the query results
 		state.DrawLevelMesh(LevelMeshDrawType::Opaque, false);
 		state.DrawLevelMesh(LevelMeshDrawType::Masked, false);
@@ -495,6 +507,17 @@ void HWDrawInfo::CreateScene(bool drawpsprites, FRenderState& state)
 			}
 		}
 
+		// Draw Decals
+		{
+			level.levelMesh->ProcessDecals(this, state);
+			state.SetRenderStyle(STYLE_Translucent);
+			state.SetDepthFunc(DF_LEqual);
+			DrawDecals(state, Decals[0]);
+			DrawDecals(state, Decals[1]); // Mirror decals - when should they be drawn?
+			Decals[0].Clear();
+			Decals[1].Clear();
+		}
+
 		// Draw sprites
 		auto it = level.GetThinkerIterator<AActor>();
 		AActor* thing;
@@ -513,6 +536,16 @@ void HWDrawInfo::CreateScene(bool drawpsprites, FRenderState& state)
 			}
 
 			sprite.Process(this, state, thing, thing->Sector, in_area, false);
+		}
+
+		// Draw particles
+		for (uint16_t i = level.ActiveParticles; i != NO_PARTICLE; i = level.Particles[i].tnext)
+		{
+			if (Level->Particles[i].subsector)
+			{
+				HWSprite sprite;
+				sprite.ProcessParticle(this, state, &Level->Particles[i], Level->Particles[i].subsector->sector, nullptr);
+			}
 		}
 
 		// Process all the sprites on the current portal's back side which touch the portal.
@@ -654,7 +687,7 @@ void HWDrawInfo::UpdateLightmaps()
 {
 	if (!outer && VisibleTiles.Size() < unsigned(lm_background_updates))
 	{
-		for (auto& e : level.levelMesh->LightmapTiles)
+		for (auto& e : level.levelMesh->Lightmap.Tiles)
 		{
 			if (e.NeedsUpdate)
 			{
@@ -825,6 +858,9 @@ void HWDrawInfo::DrawCorona(FRenderState& state, AActor* corona, float coronaFad
 	state.SetRenderStyle(corona->RenderStyle);
 	state.SetTextureMode(TM_NORMAL); // This is needed because the next line doesn't always set the mode...
 	state.SetTextureMode(corona->RenderStyle);
+
+	// no need for alpha test, coronas are meant to be translucent
+	state.AlphaFunc(Alpha_GEqual, 0.f);
 
 	state.SetMaterial(tex, UF_Sprite, CTF_Expand, CLAMP_XY_NOMIP, 0, 0);
 
@@ -1018,6 +1054,7 @@ void HWDrawInfo::DrawCoronas(FRenderState& state)
 			DrawCorona(state, corona, (float)coronaFade, dist);
 	}
 
+	state.AlphaFunc(Alpha_Greater, 0.f);
 	state.SetTextureMode(TM_NORMAL);
 	state.SetViewpoint(vpIndex);
 	state.EnableDepthTest(true);
@@ -1126,7 +1163,10 @@ void HWDrawInfo::DrawScene(int drawmode, FRenderState& state)
 		applySSAO = true;
 		if (r_dithertransparency && vp.IsAllowedOoB())
 		{
-			vp.camera->tracer ? SetDitherTransFlags(vp.camera->tracer) : SetDitherTransFlags(players[consoleplayer].mo);
+			if (vp.camera->tracer)
+				SetDitherTransFlags(vp.camera->tracer);
+			else
+				SetDitherTransFlags(players[consoleplayer].mo);
 		}
 	}
 	else if (drawmode == DM_OFFSCREEN)
@@ -1160,6 +1200,8 @@ void HWDrawInfo::DrawScene(int drawmode, FRenderState& state)
 	if (!gl_no_skyclear && !gl_levelmesh) drawctx->portalState.RenderFirstSkyPortal(recursion, this, state);
 
 	RenderScene(state);
+
+	screen->UpdateLinearDepthTexture();
 
 	if (applySSAO && state.GetPassType() == GBUFFER_PASS)
 	{

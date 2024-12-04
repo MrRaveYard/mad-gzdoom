@@ -15,6 +15,7 @@
 struct FLevelLocals;
 struct FPolyObj;
 struct HWWallDispatcher;
+struct HWDrawInfo;
 class DoomLevelMesh;
 class MeshBuilder;
 
@@ -54,15 +55,25 @@ struct DrawRangeInfo
 	int DrawIndexCount = 0;
 };
 
+enum SurfaceUpdateType
+{
+	None,
+	LightsOnly,
+	Full
+};
+
 struct SideSurfaceBlock
 {
 	int FirstSurface = -1;
 	TArray<GeometryFreeInfo> Geometries;
 	TArray<UniformsAllocInfo> Uniforms;
 	TArray<HWWall> WallPortals;
+	TArray<HWDecalCreateInfo> Decals;
 	bool InSidePortalsList = false;
+	bool InSideDecalsList = false;
 	TArray<DrawRangeInfo> DrawRanges;
-	bool InUpdateList = false;
+	SurfaceUpdateType UpdateType = SurfaceUpdateType::None;
+	LightListAllocInfo Lights;
 };
 
 struct FlatSurfaceBlock
@@ -71,7 +82,8 @@ struct FlatSurfaceBlock
 	TArray<GeometryFreeInfo> Geometries;
 	TArray<UniformsAllocInfo> Uniforms;
 	TArray<DrawRangeInfo> DrawRanges;
-	bool InUpdateList = false;
+	SurfaceUpdateType UpdateType = SurfaceUpdateType::None;
+	TArray<LightListAllocInfo> Lights;
 };
 
 class DoomLevelMesh : public LevelMesh, public UpdateLevelMesh
@@ -87,6 +99,9 @@ public:
 
 	void BuildSectorGroups(const FLevelLocals& doomMap);
 
+	void ProcessDecals(HWDrawInfo* drawinfo, FRenderState& state);
+
+	TArray<int> SideDecals;
 	TArray<int> SidePortals;
 	TArray<HWWall*> WallPortals;
 
@@ -94,18 +109,21 @@ public:
 	TArray<int> sectorPortals[2]; // index is sector+plane, value is index into the portal list
 	TArray<int> linePortals; // index is linedef, value is index into the portal list
 
-	void CreateLights(FLevelLocals& doomMap);
+	void SaveLightmapLump(FLevelLocals& doomMap);
+	void DeleteLightmapLump(FLevelLocals& doomMap);
+	static FString GetMapFilename(FLevelLocals& doomMap);
 
-	void FloorHeightChanged(struct sector_t* sector) override;
-	void CeilingHeightChanged(struct sector_t* sector) override;
-	void MidTex3DHeightChanged(struct sector_t* sector) override;
-	void FloorTextureChanged(struct sector_t* sector) override;
-	void CeilingTextureChanged(struct sector_t* sector) override;
-	void SectorChangedOther(struct sector_t* sector) override;
-	void SideTextureChanged(struct side_t* side, int section) override;
-	void SectorLightChanged(struct sector_t* sector) override;
-	void SectorLightThinkerCreated(struct sector_t* sector, class DLighting* lightthinker) override;
-	void SectorLightThinkerDestroyed(struct sector_t* sector, class DLighting* lightthinker) override;
+	void OnFloorHeightChanged(sector_t* sector) override;
+	void OnCeilingHeightChanged(sector_t* sector) override;
+	void OnMidTex3DHeightChanged(sector_t* sector) override;
+	void OnFloorTextureChanged(sector_t* sector) override;
+	void OnCeilingTextureChanged(sector_t* sector) override;
+	void OnSectorChangedOther(sector_t* sector) override;
+	void OnSideTextureChanged(side_t* side, int section) override;
+	void OnSideDecalsChanged(side_t* side) override;
+	void OnSectorLightChanged(sector_t* sector) override;
+	void OnSectorLightThinkerCreated(sector_t* sector, DLighting* lightthinker) override;
+	void OnSectorLightThinkerDestroyed(sector_t* sector, DLighting* lightthinker) override;
 
 	void Reset(const LevelMeshLimits& limits) override
 	{
@@ -120,6 +138,7 @@ public:
 		int FlatsUpdated = 0;
 		int SidesUpdated = 0;
 		int Portals = 0;
+		int DynLights = 0;
 	};
 	Stats LastFrameStats, CurFrameStats;
 
@@ -127,13 +146,15 @@ private:
 	void SetLimits(FLevelLocals& doomMap);
 
 	void CreateSurfaces(FLevelLocals& doomMap);
-	void CreateLightList(FLevelLocals& doomMap, int surfaceIndex);
 
-	void UpdateSide(unsigned int sideIndex);
-	void UpdateFlat(unsigned int sectorIndex);
+	void UpdateSide(unsigned int sideIndex, SurfaceUpdateType updateType);
+	void UpdateFlat(unsigned int sectorIndex, SurfaceUpdateType updateType);
 
 	void CreateSide(FLevelLocals& doomMap, unsigned int sideIndex);
 	void CreateFlat(FLevelLocals& doomMap, unsigned int sectorIndex);
+
+	void SetSideLights(FLevelLocals& doomMap, unsigned int sideIndex);
+	void SetFlatLights(FLevelLocals& doomMap, unsigned int sectorIndex);
 
 	void FreeSide(FLevelLocals& doomMap, unsigned int sideIndex);
 	void FreeFlat(FLevelLocals& doomMap, unsigned int sectorIndex);
@@ -143,22 +164,26 @@ private:
 	void SetSubsectorLightmap(int surfaceIndex);
 	void SetSideLightmap(int surfaceIndex);
 
-	void CreateWallSurface(side_t* side, HWWallDispatcher& disp, MeshBuilder& state, TArray<HWWall>& list, LevelMeshDrawType drawType, bool translucent, unsigned int sectorIndex);
-	void CreateFlatSurface(HWFlatDispatcher& disp, MeshBuilder& state, TArray<HWFlat>& list, LevelMeshDrawType drawType, bool translucent, unsigned int sectorIndex);
+	void CreateWallSurface(side_t* side, HWWallDispatcher& disp, MeshBuilder& state, TArray<HWWall>& list, LevelMeshDrawType drawType, bool translucent, unsigned int sectorIndex, const LightListAllocInfo& lightlist);
+	void CreateFlatSurface(HWFlatDispatcher& disp, MeshBuilder& state, TArray<HWFlat>& list, LevelMeshDrawType drawType, bool translucent, unsigned int sectorIndex, const LightListAllocInfo& lightlist);
 
 	BBox GetBoundsFromSurface(const LevelMeshSurface& surface) const;
 
-	int AddSurfaceToTile(const DoomSurfaceInfo& info, const LevelMeshSurface& surf, uint16_t sampleDimension, bool alwaysUpdate);
+	int AddSurfaceToTile(const DoomSurfaceInfo& info, const LevelMeshSurface& surf, uint16_t sampleDimension, uint8_t alwaysUpdate);
 	int GetSampleDimension(uint16_t sampleDimension);
 
 	void CreatePortals(FLevelLocals& doomMap);
-	std::pair<FLightNode*, int> GetSurfaceLightNode(int surfaceIndex);
 
+	LightListAllocInfo CreateLightList(FLightNode* node, int portalgroup);
 	int GetLightIndex(FDynamicLight* light, int portalgroup);
+	void UpdateLight(FDynamicLight* light);
+	void CopyToMeshLight(FDynamicLight* light, LevelMeshLight& meshlight, int portalgroup);
 
 	void AddToDrawList(TArray<DrawRangeInfo>& drawRanges, int pipelineID, int indexStart, int indexCount, LevelMeshDrawType drawType);
 	void RemoveFromDrawList(const TArray<DrawRangeInfo>& drawRanges);
 	void SortDrawLists();
+
+	void UploadDynLights(FLevelLocals& doomMap);
 
 	TArray<DoomSurfaceInfo> DoomSurfaceInfos;
 
@@ -171,5 +196,4 @@ private:
 
 	std::map<LightmapTileBinding, int> bindings;
 	MeshBuilder state;
-	bool LightsCreated = false;
 };

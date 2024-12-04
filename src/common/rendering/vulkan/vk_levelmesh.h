@@ -18,18 +18,6 @@ struct CollisionNodeBufferHeader
 	int padding3;
 };
 
-struct CollisionNode
-{
-	FVector3 center;
-	float padding1;
-	FVector3 extents;
-	float padding2;
-	int left;
-	int right;
-	int element_index;
-	int padding3;
-};
-
 struct SurfaceInfo
 {
 	FVector3 Normal;
@@ -96,6 +84,8 @@ public:
 	VulkanBuffer* GetSurfaceIndexBuffer() { return SurfaceIndexBuffer.get(); }
 	VulkanBuffer* GetSurfaceBuffer() { return SurfaceBuffer.get(); }
 	VulkanBuffer* GetUniformsBuffer() { return UniformsBuffer.get(); }
+	VulkanBuffer* GetLightUniformsBuffer() { return LightUniformsBuffer.get(); }
+	VulkanBuffer* GetDynLightBuffer() { return DynLightBuffer.get(); }
 	VulkanBuffer* GetPortalBuffer() { return PortalBuffer.get(); }
 	VulkanBuffer* GetLightBuffer() { return LightBuffer.get(); }
 	VulkanBuffer* GetLightIndexBuffer() { return LightIndexBuffer.get(); }
@@ -145,9 +135,11 @@ private:
 	std::unique_ptr<VulkanBuffer> SurfaceIndexBuffer;
 	std::unique_ptr<VulkanBuffer> SurfaceBuffer;
 	std::unique_ptr<VulkanBuffer> UniformsBuffer;
+	std::unique_ptr<VulkanBuffer> LightUniformsBuffer;
 	std::unique_ptr<VulkanBuffer> PortalBuffer;
 	std::unique_ptr<VulkanBuffer> LightBuffer;
 	std::unique_ptr<VulkanBuffer> LightIndexBuffer;
+	std::unique_ptr<VulkanBuffer> DynLightBuffer;
 	std::unique_ptr<VulkanBuffer> DrawIndexBuffer;
 
 	std::unique_ptr<VulkanBuffer> NodeBuffer;

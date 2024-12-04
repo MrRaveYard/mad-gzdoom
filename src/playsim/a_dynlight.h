@@ -131,6 +131,7 @@ protected:
 	DAngle m_spotOuterAngle = DAngle::fromDeg(25.0);
 	DAngle m_pitch = nullAngle;
 	double SoftShadowRadius = 5.0;
+	double Linearity = 0.0;
 	
 	friend FSerializer &Serialize(FSerializer &arc, const char *key, FLightDefaults &value, FLightDefaults *def);
 };
@@ -224,6 +225,8 @@ struct FDynamicLight
 	bool IsActive() const { return m_active; }
 	float GetRadius() const { return (IsActive() ? m_currentRadius * 2.f : 0.f); }
 	float GetSoftShadowRadius() const { return (float)(*pSoftShadowRadius); }
+	float GetLinearity() const { return (float)(*pLinearity); }
+	float GetStrength() const { return lightStrength; }
 	int GetRed() const { return pArgs[LIGHT_RED]; }
 	int GetGreen() const { return pArgs[LIGHT_GREEN]; }
 	int GetBlue() const { return pArgs[LIGHT_BLUE]; }
@@ -272,6 +275,8 @@ public:
 	const LightFlags *pLightFlags;
 	const double* pSoftShadowRadius;   // Softshadows. Physical size of the light source
 
+	const double* pLinearity;
+
 	double specialf1;
 	FDynamicLight *next, *prev;
 	sector_t *Sector;
@@ -291,6 +296,8 @@ public:
 	bool owned;
 	bool swapped;
 	bool explicitpitch;
+
+	float lightStrength;
 
 	// Locations in the level mesh light list. Ends with index = 0 or all entries used
 	enum { max_levelmesh_entries = 4 };

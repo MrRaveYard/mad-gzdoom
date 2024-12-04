@@ -89,6 +89,8 @@ extend struct GameInfoStruct
 	native double Armor2Percent;
 	native String ArmorIcon1;
 	native String ArmorIcon2;
+	native Name BasicArmorClass;
+	native Name HexenArmorClass;
 	native bool norandomplayerclass;
 	native Array<Name> infoPages;
 	native GIFont mStatscreenMapNameFont;
@@ -348,6 +350,7 @@ struct LevelInfo native
 	native readonly String LightningSound;
 	native readonly String Music;
 	native readonly String LevelName;
+	native readonly String MapLabel;
 	native readonly String AuthorName;
 	native readonly int musicorder;
 	native readonly float skyspeed1;
@@ -814,9 +817,9 @@ struct Lightmap
 	// Mark all lightmap surfaces for recalculation. The internal lightmapper will gradually recalculate every single lightmap surface in the level.
 	native static void Invalidate();
 
-	// Set direction of the light towards the sun.
+	// Set direction of the light towards the sun. Angle and pitch matches ZDRayInfo.
 	// Calling this does NOT recalculate the lightmap.
-	native static void SetSunDirection(Vector3 dir);
+	native static void SetSunDirection(double ang, double pch);
 
 	// Can go above 1.0 (call Invalidate())
 	// Calling this does NOT recalculate the lightmap.

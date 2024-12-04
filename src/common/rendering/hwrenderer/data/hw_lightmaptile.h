@@ -5,6 +5,9 @@
 #include "vectors.h"
 #include "bounds.h"
 
+#define LIGHTMAP_GLOBAL_SAMPLE_DISTANCE_MIN (int)4
+#define LIGHTMAP_GLOBAL_SAMPLE_DISTANCE_MAX (int)64
+
 struct LevelMeshSurface;
 
 struct LightmapTileBinding
@@ -51,7 +54,7 @@ struct LightmapTile
 	// True if the tile needs to be rendered into the lightmap texture before it can be used
 	bool NeedsUpdate = true;
 
-	bool AlwaysUpdate = false;
+	uint8_t AlwaysUpdate = 0;
 
 	FVector2 ToUV(const FVector3& vert) const
 	{

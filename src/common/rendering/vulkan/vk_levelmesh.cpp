@@ -57,6 +57,7 @@ void VkLevelMesh::Reset()
 	deletelist->Add(std::move(NodeBuffer));
 	deletelist->Add(std::move(SurfaceBuffer));
 	deletelist->Add(std::move(UniformsBuffer));
+	deletelist->Add(std::move(LightUniformsBuffer));
 	deletelist->Add(std::move(SurfaceIndexBuffer));
 	deletelist->Add(std::move(PortalBuffer));
 	deletelist->Add(std::move(LightBuffer));
@@ -268,7 +269,7 @@ void VkLevelMesh::CreateBuffers()
 
 	NodeBuffer = BufferBuilder()
 		.Usage(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT)
-		.Size(sizeof(CollisionNodeBufferHeader) + Mesh->Mesh.MaxNodes * sizeof(CollisionNode))
+		.Size(sizeof(CollisionNodeBufferHeader) + Mesh->Mesh.Nodes.Size() * sizeof(CollisionNode))
 		.DebugName("NodeBuffer")
 		.Create(fb->GetDevice());
 
@@ -290,6 +291,12 @@ void VkLevelMesh::CreateBuffers()
 		.DebugName("SurfaceUniformsBuffer")
 		.Create(fb->GetDevice());
 
+	LightUniformsBuffer = BufferBuilder()
+		.Usage(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT)
+		.Size(Mesh->Mesh.LightUniforms.Size() * sizeof(SurfaceLightUniforms))
+		.DebugName("SurfaceLightUniformsBuffer")
+		.Create(fb->GetDevice());
+
 	PortalBuffer = BufferBuilder()
 		.Usage(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT)
 		.Size(Mesh->Portals.Size() * sizeof(PortalInfo))
@@ -306,6 +313,12 @@ void VkLevelMesh::CreateBuffers()
 		.Usage(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT)
 		.Size(Mesh->Mesh.LightIndexes.Size() * sizeof(int32_t))
 		.DebugName("LightIndexBuffer")
+		.Create(fb->GetDevice());
+
+	DynLightBuffer = BufferBuilder()
+		.Usage(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT)
+		.Size(Mesh->Mesh.DynLights.Size() * sizeof(FVector4))
+		.DebugName("DynLightBuffer")
 		.Create(fb->GetDevice());
 }
 
@@ -706,6 +719,8 @@ void VkLevelMeshUploader::Upload()
 	UploadRanges(Mesh->Mesh->UploadRanges.SurfaceIndex, Mesh->Mesh->Mesh.SurfaceIndexes.Data(), Mesh->SurfaceIndexBuffer.get());
 	UploadRanges(Mesh->Mesh->UploadRanges.LightIndex, Mesh->Mesh->Mesh.LightIndexes.Data(), Mesh->LightIndexBuffer.get());
 	UploadRanges(Mesh->Mesh->UploadRanges.DrawIndex, Mesh->Mesh->Mesh.DrawIndexes.Data(), Mesh->DrawIndexBuffer.get());
+	UploadRanges(Mesh->Mesh->UploadRanges.LightUniforms, Mesh->Mesh->Mesh.LightUniforms.Data(), Mesh->LightUniformsBuffer.get());
+	UploadRanges(Mesh->Mesh->UploadRanges.DynLight, Mesh->Mesh->Mesh.DynLights.Data(), Mesh->DynLightBuffer.get());
 	UploadSurfaces();
 	UploadUniforms();
 	UploadPortals();
@@ -734,9 +749,11 @@ void VkLevelMeshUploader::ClearRanges()
 	Mesh->Mesh->UploadRanges.Surface.clear();
 	Mesh->Mesh->UploadRanges.UniformIndexes.clear();
 	Mesh->Mesh->UploadRanges.Uniforms.clear();
+	Mesh->Mesh->UploadRanges.LightUniforms.clear();
 	Mesh->Mesh->UploadRanges.Portals.clear();
 	Mesh->Mesh->UploadRanges.Light.clear();
 	Mesh->Mesh->UploadRanges.LightIndex.clear();
+	Mesh->Mesh->UploadRanges.DynLight.clear();
 	Mesh->Mesh->UploadRanges.DrawIndex.clear();
 }
 
@@ -765,39 +782,21 @@ static FVector3 SwapYZ(const FVector3& v)
 
 void VkLevelMeshUploader::UploadNodes()
 {
-	if (Mesh->useRayQuery)
+	if (Mesh->useRayQuery || Mesh->Mesh->UploadRanges.Node.Size() == 0)
 		return;
 
 	// Always update the header struct of the collision storage buffer block if something changed
-	if (Mesh->Mesh->UploadRanges.Node.Size() > 0)
-	{
-		CollisionNodeBufferHeader nodesHeader;
-		nodesHeader.root = Mesh->Mesh->Collision->get_root();
-
-		*((CollisionNodeBufferHeader*)(data + datapos)) = nodesHeader;
-		copyCommands.emplace_back(transferBuffer.get(), Mesh->NodeBuffer.get(), datapos, 0, sizeof(CollisionNodeBufferHeader));
-
-		datapos += sizeof(CollisionNodeBufferHeader) + sizeof(CollisionNode);
-	}
+	CollisionNodeBufferHeader nodesHeader;
+	nodesHeader.root = Mesh->Mesh->Mesh.RootNode;
+	*((CollisionNodeBufferHeader*)(data + datapos)) = nodesHeader;
+	copyCommands.emplace_back(transferBuffer.get(), Mesh->NodeBuffer.get(), datapos, 0, sizeof(CollisionNodeBufferHeader));
+	datapos += sizeof(CollisionNodeBufferHeader);
 
 	// Copy collision nodes
 	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.Node)
 	{
-		const auto& srcnodes = Mesh->Mesh->Collision->get_nodes();
-		CollisionNode* nodes = (CollisionNode*)(data + datapos);
-		for (int i = 0, count = range.Count(); i < count; i++)
-		{
-			const auto& node = srcnodes[range.Start + i];
-			CollisionNode info;
-			info.center = SwapYZ(node.aabb.Center);
-			info.extents = SwapYZ(node.aabb.Extents);
-			info.left = node.left;
-			info.right = node.right;
-			info.element_index = node.element_index;
-			*(nodes++) = info;
-		}
-
 		size_t copysize = range.Count() * sizeof(CollisionNode);
+		memcpy(data + datapos, Mesh->Mesh->Mesh.Nodes.Data() + range.Start, copysize);
 		if (copysize > 0)
 			copyCommands.emplace_back(transferBuffer.get(), Mesh->NodeBuffer.get(), datapos, sizeof(CollisionNodeBufferHeader) + range.Start * sizeof(CollisionNode), copysize);
 		datapos += copysize;
@@ -865,10 +864,12 @@ void VkLevelMeshUploader::UploadUniforms()
 			{
 				auto source = material.mMaterial->Source();
 				surfaceUniforms.uSpecularMaterial = { source->GetGlossiness(), source->GetSpecularLevel() };
+				surfaceUniforms.uDepthFadeThreshold = source->GetDepthFadeThreshold();
 				surfaceUniforms.uTextureIndex = Mesh->fb->GetBindlessTextureIndex(material.mMaterial, material.mClampMode, material.mTranslation);
 			}
 			else
 			{
+				surfaceUniforms.uDepthFadeThreshold = 0.f;
 				surfaceUniforms.uTextureIndex = 0;
 			}
 		}
@@ -936,7 +937,7 @@ size_t VkLevelMeshUploader::GetTransferSize()
 	size_t transferBufferSize = 0;
 	if (!Mesh->useRayQuery)
 	{
-		if (Mesh->Mesh->UploadRanges.Node.Size() > 0) transferBufferSize += sizeof(CollisionNodeBufferHeader) + sizeof(CollisionNode);
+		if (Mesh->Mesh->UploadRanges.Node.Size() > 0) transferBufferSize += sizeof(CollisionNodeBufferHeader);
 		for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.Node) transferBufferSize += range.Count() * sizeof(CollisionNode);
 	}
 	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.Vertex) transferBufferSize += range.Count() * sizeof(FFlatVertex);
@@ -945,9 +946,11 @@ size_t VkLevelMeshUploader::GetTransferSize()
 	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.SurfaceIndex) transferBufferSize += range.Count() * sizeof(int);
 	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.Surface) transferBufferSize += range.Count() * sizeof(SurfaceInfo);
 	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.Uniforms) transferBufferSize += range.Count() * sizeof(SurfaceUniforms);
+	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.LightUniforms) transferBufferSize += range.Count() * sizeof(SurfaceLightUniforms);
 	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.Portals) transferBufferSize += range.Count() * sizeof(PortalInfo);
 	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.LightIndex) transferBufferSize += range.Count() * sizeof(int32_t);
 	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.Light) transferBufferSize += range.Count() * sizeof(LightInfo);
+	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.DynLight) transferBufferSize += range.Count() * sizeof(FVector4);
 	for (const MeshBufferRange& range : Mesh->Mesh->UploadRanges.DrawIndex) transferBufferSize += range.Count() * sizeof(uint32_t);
 	return transferBufferSize;
 }

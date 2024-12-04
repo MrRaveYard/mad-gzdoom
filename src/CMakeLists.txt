@@ -69,20 +69,13 @@ if( WIN32 )
 		setupapi
 		oleaut32
 		dbghelp
-		dxguid
-		dwmapi
-	)
-
-	if( NOT MINGW )
-		list( APPEND PROJECT_LIBRARIES legacy_stdio_definitions )
-	endif()
+		legacy_stdio_definitions )
 
 	if( DEM_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 		if( DX_dxguid_LIBRARY )
 			list( APPEND PROJECT_LIBRARIES "${DX_dxguid_LIBRARY}" )
 		endif()
 	endif()
-	
 else()
 	if( APPLE )
 		set( NO_GTK ON )
@@ -746,6 +739,7 @@ set (VULKAN_SOURCES
 	common/rendering/vulkan/vk_pprenderstate.cpp
 	common/rendering/vulkan/vk_levelmesh.cpp
 	common/rendering/vulkan/vk_lightmapper.cpp
+	common/rendering/vulkan/vk_lightprober.cpp
 	common/rendering/vulkan/commands/vk_commandbuffer.cpp
 	common/rendering/vulkan/buffers/vk_rsbuffers.cpp
 	common/rendering/vulkan/buffers/vk_hwbuffer.cpp
@@ -1008,6 +1002,7 @@ set (PCH_SOURCES
 	common/textures/multipatchtexturebuilder.cpp
 	common/textures/skyboxtexture.cpp
 	common/textures/animtexture.cpp
+	common/textures/firetexture.cpp
 	common/textures/v_collection.cpp
 	common/textures/formats/automaptexture.cpp
 	common/textures/formats/brightmaptexture.cpp
@@ -1327,6 +1322,13 @@ else()
 endif()
 
 if( MSVC )
+	option ( CONSOLE_MODE "Compile as a console application" OFF )
+	if ( CONSOLE_MODE )
+		set ( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:CONSOLE" )
+	else()
+		set ( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS" )
+	endif()
+
 	option( ZDOOM_GENERATE_MAPFILE "Generate .map file for debugging." OFF )
 	set( LINKERSTUFF "/MANIFEST:NO" )
 

@@ -722,7 +722,7 @@ enum EParticleFlags
 	SPF_FACECAMERA				= 1 << 11,
 	SPF_NOFACECAMERA			= 1 << 12,
 	SPF_ROLLCENTER				= 1 << 13,
-	SPF_NOMIPMAP				= 1 << 14,
+	SPF_STRETCHPIXELS			= 1 << 14,
 
 	SPF_RELATIVE				= SPF_RELPOS|SPF_RELVEL|SPF_RELACCEL|SPF_RELANG
 };
@@ -1026,6 +1026,7 @@ enum ESkillProperty
 	SKILLP_PlayerRespawn,
 	SKILLP_SpawnMulti,
 	SKILLP_InstantReaction,
+	SKILLP_SpawnMultiCoopOnly,
 };
 enum EFSkillProperty	// floating point properties
 {

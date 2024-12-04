@@ -29,6 +29,7 @@ CVAR(Bool, lm_blur, true, CVAR_ARCHIVE);
 CVAR(Bool, lm_ao, false, CVAR_ARCHIVE);
 CVAR(Bool, lm_softshadows, true, CVAR_ARCHIVE);
 CVAR(Bool, lm_bounce, false, CVAR_ARCHIVE);
+CVAR(Bool, lm_dynamic, true, CVAR_ARCHIVE);
 
 VkLightmapper::VkLightmapper(VulkanRenderDevice* fb) : fb(fb)
 {
@@ -378,8 +379,8 @@ void VkLightmapper::CopyResult()
 	if (pixels == 0)
 		return;
 
-	VkTextureImage* destTexture = &fb->GetTextureManager()->Lightmap;
-	int destSize = fb->GetTextureManager()->LMTextureSize;
+	VkTextureImage* destTexture = &fb->GetTextureManager()->Lightmap.Image;
+	int destSize = fb->GetTextureManager()->Lightmap.Size;
 
 	auto cmdbuffer = fb->GetCommands()->GetTransferCommands();
 

@@ -164,6 +164,20 @@ bool CheckWarpTransMap (FString &mapname, bool substitute)
 //
 //==========================================================================
 
+bool SecretLevelVisited()
+{
+	for (unsigned int i = 0; i < wadlevelinfos.Size(); i++)
+		if ((wadlevelinfos[i].flags3 & LEVEL3_SECRET) && (wadlevelinfos[i].flags & LEVEL_VISITED))
+			return true;
+
+	return false;
+}
+
+//==========================================================================
+//
+//
+//==========================================================================
+
 static int FindWadClusterInfo (int cluster)
 {
 	for (unsigned int i = 0; i < wadclusterinfos.Size(); i++)
@@ -255,6 +269,7 @@ void level_info_t::Reset()
 	Music = "";
 	LevelName = "";
 	AuthorName = "";
+	MapLabel = "";
 	FadeTable = "COLORMAP";
 	CustomColorMap = "COLORMAP";
 	WallHorizLight = -8;
@@ -281,6 +296,8 @@ void level_info_t::Reset()
 	RedirectCVARMapName = "";
 	EnterPic = "";
 	ExitPic = "";
+	EnterAnim = "";
+	ExitAnim = "";
 	Intermission = NAME_None;
 	deathsequence = NAME_None;
 	slideshow = NAME_None;
@@ -308,6 +325,7 @@ void level_info_t::Reset()
 	skyrotatevector = FVector3(0, 0, 1);
 	skyrotatevector2 = FVector3(0, 0, 1);
 	lightblendmode = ELightBlendMode::DEFAULT;
+	lightattenuationmode = ELightAttenuationMode::DEFAULT;
 	tonemap = ETonemapMode::None;
 }
 
@@ -1013,6 +1031,13 @@ DEFINE_MAP_OPTION(author, true)
 	info->AuthorName = parse.sc.String;
 }
 
+DEFINE_MAP_OPTION(label, true)
+{
+	parse.ParseAssign();
+	parse.sc.MustGetString();
+	info->MapLabel = parse.sc.String;
+}
+
 DEFINE_MAP_OPTION(secretnext, true)
 {
 	parse.ParseAssign();
@@ -1255,6 +1280,20 @@ DEFINE_MAP_OPTION(enterpic, true)
 	parse.ParseAssign();
 	parse.sc.MustGetString();
 	info->EnterPic = parse.sc.String;
+}
+
+DEFINE_MAP_OPTION(exitanim, true)
+{
+	parse.ParseAssign();
+	parse.sc.MustGetString();
+	info->ExitAnim = parse.sc.String;
+}
+
+DEFINE_MAP_OPTION(enteranim, true)
+{
+	parse.ParseAssign();
+	parse.sc.MustGetString();
+	info->EnterAnim = parse.sc.String;
 }
 
 DEFINE_MAP_OPTION(specialaction, true)
@@ -1558,9 +1597,13 @@ DEFINE_MAP_OPTION(lightblendmode, false)
 	parse.ParseAssign();
 	parse.sc.MustGetString();
 
-	if (parse.sc.Compare("Default") || parse.sc.Compare("Clamp"))
+	if (parse.sc.Compare("Default"))
 	{
 		info->lightblendmode = ELightBlendMode::DEFAULT;
+	}
+	else if (parse.sc.Compare("Clamp"))
+	{
+		info->lightblendmode = ELightBlendMode::CLAMP;
 	}
 	else if (parse.sc.Compare("ColoredClamp"))
 	{
@@ -1601,6 +1644,29 @@ DEFINE_MAP_OPTION(lightblendmode, false)
 	else
 	{
 		parse.sc.ScriptMessage("Invalid light blend mode %s", parse.sc.String);
+	}
+}
+
+DEFINE_MAP_OPTION(lightattenuationmode, false)
+{
+	parse.ParseAssign();
+	parse.sc.MustGetString();
+
+	if (parse.sc.Compare("Default"))
+	{
+		info->lightattenuationmode = ELightAttenuationMode::DEFAULT;
+	}
+	else if (parse.sc.Compare("Linear"))
+	{
+		info->lightattenuationmode = ELightAttenuationMode::LINEAR;
+	}
+	else if (parse.sc.Compare("InverseSquare"))
+	{
+		info->lightattenuationmode = ELightAttenuationMode::INVERSE_SQUARE;
+	}
+	else
+	{
+		parse.sc.ScriptMessage("Invalid light attenuation mode %s", parse.sc.String);
 	}
 }
 
@@ -2401,9 +2467,13 @@ static void SetLevelNum (level_info_t *info, int num)
 	for (unsigned int i = 0; i < wadlevelinfos.Size(); ++i)
 	{
 		if (wadlevelinfos[i].levelnum == num)
+		{
 			wadlevelinfos[i].levelnum = 0;
+			wadlevelinfos[i].broken_id24_levelnum = 0;
+		}
 	}
 	info->levelnum = num;
+	info->broken_id24_levelnum = num;	// at least make it work - somehow.
 }
 
 //==========================================================================
@@ -2631,6 +2701,7 @@ void G_ParseMapInfo (FString basemapinfo)
 {
 	int lump, lastlump = 0;
 	level_info_t gamedefaults;
+	TArray<FString> secretMaps;
 
 	int flags1 = 0, flags2 = 0;
 	if (gameinfo.gametype == GAME_Doom)
@@ -2746,6 +2817,24 @@ void G_ParseMapInfo (FString basemapinfo)
 	if (AllSkills.Size() == 0)
 	{
 		I_FatalError ("You cannot use clearskills in a MAPINFO if you do not define any new skills after it.");
+	}
+
+	// Find any and all secret maps.
+	for (unsigned int i = 0; i < wadlevelinfos.Size(); i++)
+	{
+		if (wadlevelinfos[i].NextSecretMap.IsNotEmpty() && wadlevelinfos[i].NextSecretMap != wadlevelinfos[i].NextMap)
+		{
+			secretMaps.Push(wadlevelinfos[i].NextSecretMap);
+		}
+	}
+	// ...and then mark them all as secret maps.
+	for (unsigned int i = 0; i < secretMaps.Size(); i++)
+	{
+		auto* li = FindLevelInfo(secretMaps[i].GetChars(), false);
+		if (li)
+		{
+			li->flags3 |= LEVEL3_SECRET;
+		}
 	}
 }
 

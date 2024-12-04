@@ -14,6 +14,7 @@
 
 EXTERN_CVAR(Bool, lm_always_update);
 EXTERN_CVAR(Int, lm_max_updates);
+EXTERN_CVAR(Bool, lm_dynamic);
 
 enum EDrawMode
 {
@@ -229,17 +230,17 @@ public:
 
 	void PushVisibleTile(int tileIndex)
 	{
+		if (tileIndex < 0)
+			return;
+
 		if (outer)
 		{
 			outer->PushVisibleTile(tileIndex);
 			return;
 		}
 
-		if (tileIndex < 0)
-			return;
-
-		LightmapTile* tile = &Level->levelMesh->LightmapTiles[tileIndex];
-		if (lm_always_update || tile->AlwaysUpdate)
+		LightmapTile* tile = &Level->levelMesh->Lightmap.Tiles[tileIndex];
+		if (lm_always_update || tile->AlwaysUpdate == 2 || (tile->AlwaysUpdate == 1 && lm_dynamic))
 		{
 			tile->NeedsUpdate = true;
 		}
@@ -327,7 +328,7 @@ public:
     void AddSubsectorToPortal(FSectorPortalGroup *portal, subsector_t *sub);
     
     void AddWall(HWWall *w);
-    void AddMirrorSurface(HWWall *w, FRenderState& state);
+    void AddMirrorSurface(HWWallDispatcher* di, HWWall *w, FRenderState& state);
 	void AddFlat(HWFlat *flat, bool fog);
 	void AddSprite(HWSprite *sprite, bool translucent);
 
@@ -396,3 +397,6 @@ bool CheckFog(FLevelLocals* Level, sector_t* frontsector, sector_t* backsector, 
 void SetColor(FRenderState& state, FLevelLocals* Level, ELightMode lightmode, int sectorlightlevel, int rellight, bool fullbright, const FColormap& cm, float alpha, bool weapon = false);
 void SetShaderLight(FRenderState& state, FLevelLocals* Level, float level, float olight);
 void SetFog(FRenderState& state, FLevelLocals* Level, ELightMode lightmode, int lightlevel, int rellight, bool fullbright, const FColormap* cmap, bool isadditive, bool inskybox);
+
+struct SurfaceLightUniforms;
+void SetColor(SurfaceLightUniforms& uniforms, FLevelLocals* Level, ELightMode lightmode, int sectorlightlevel, int rellight, bool fullbright, const FColormap& cm, float alpha, bool weapon = false);
