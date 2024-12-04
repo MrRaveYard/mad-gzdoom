@@ -172,7 +172,7 @@ vec3 ProcessMaterialLight(Material material, vec3 ambientLight)
 	vec3 kS = F;
 	vec3 kD = 1.0 - kS;
 
-	vec3 irradiance = ambientLight + uDynLightColor.rgb; // texture(IrradianceMap, vec4(N, probeIndex)).rgb; // EM2 unfortunately messes up PBR
+	vec3 irradiance = texture(IrradianceMap, vec4(N, probeIndex)).rgb;
 	vec3 diffuse = irradiance * albedo;
 
 	kD *= 1.0 - metallic;
