@@ -926,9 +926,7 @@ bool M_SaveBitmap(const uint8_t *from, ESSType color_type, int width, int height
 		temprow[i] = &temprow_storage[temprow_size * i];
 	}
 
-	TArray<Byte> array(PNG_WRITE_SIZE, true);
-	auto buffer = array.data();
-	const auto bufferSize = array.size();
+	TArray<Byte> buffer(PNG_WRITE_SIZE, true);
 	z_stream stream;
 	int err;
 	int y;
@@ -945,8 +943,8 @@ bool M_SaveBitmap(const uint8_t *from, ESSType color_type, int width, int height
 	}
 
 	y = height;
-	stream.next_out = buffer;
-	stream.avail_out = bufferSize;
+	stream.next_out = buffer.data();
+	stream.avail_out = buffer.size();
 
 	temprow[0][0] = 0;
 #if USE_FILTER_HEURISTIC
@@ -1008,12 +1006,12 @@ bool M_SaveBitmap(const uint8_t *from, ESSType color_type, int width, int height
 		}
 		while (stream.avail_out == 0)
 		{
-			if (!WriteIDAT (file, buffer, bufferSize))
+			if (!WriteIDAT (file, buffer.data(), buffer.size()))
 			{
 				return false;
 			}
-			stream.next_out = buffer;
-			stream.avail_out = bufferSize;
+			stream.next_out = buffer.data();
+			stream.avail_out = buffer.size();
 			if (stream.avail_in != 0)
 			{
 				err = deflate (&stream, (y == 0) ? Z_FINISH : 0);
@@ -1034,12 +1032,12 @@ bool M_SaveBitmap(const uint8_t *from, ESSType color_type, int width, int height
 		}
 		if (stream.avail_out == 0)
 		{
-			if (!WriteIDAT (file, buffer, bufferSize))
+			if (!WriteIDAT (file, buffer.data(), buffer.size()))
 			{
 				return false;
 			}
-			stream.next_out = buffer;
-			stream.avail_out = bufferSize;
+			stream.next_out = buffer.data();
+			stream.avail_out = buffer.size();
 		}
 	}
 
@@ -1049,7 +1047,7 @@ bool M_SaveBitmap(const uint8_t *from, ESSType color_type, int width, int height
 	{
 		return false;
 	}
-	return WriteIDAT (file, buffer, bufferSize - stream.avail_out);
+	return WriteIDAT (file, buffer.data(), buffer.size() - stream.avail_out);
 }
 
 //==========================================================================
