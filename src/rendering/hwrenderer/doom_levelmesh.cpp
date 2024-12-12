@@ -54,6 +54,8 @@ static int InvalidateLightmap()
 	return count;
 }
 
+glcycle_t ProcessLevelMesh;
+
 ADD_STAT(lightmap)
 {
 	FString out;
@@ -68,12 +70,30 @@ ADD_STAT(lightmap)
 	uint32_t atlasPixelCount = levelMesh->AtlasPixelCount();
 	auto stats = levelMesh->GatherTilePixelStats();
 
-	out.Format("Surfaces: %u (awaiting updates: %u)\nSurface pixel area to update: %u\nSurface pixel area: %u\nAtlas pixel area:   %u\nAtlas efficiency: %.4f%%",
+	int indexBufferTotal = levelMesh->FreeLists.Index.back().End;
+	int indexBufferUsed = 0;
+	int pos = 0;
+	for (const auto& range : levelMesh->FreeLists.Index)
+	{
+		indexBufferUsed += range.Start - pos;
+		pos = range.End;
+	}
+
+	out.Format(
+		"Surfaces: %u (awaiting updates: %u)\n"
+		"Surface pixel area to update: %u\n"
+		"Surface pixel area: %u\nAtlas pixel area:   %u\n"
+		"Atlas efficiency: %.4f%%\n"
+		"Level mesh process time: %2.3f ms\n"
+		"Level mesh index buffer: %d K used (%d%%)",
 		stats.tiles.total, stats.tiles.dirty,
 		stats.pixels.dirty,
 		stats.pixels.total,
 		atlasPixelCount,
-		float(stats.pixels.total) / float(atlasPixelCount) * 100.0f );
+		float(stats.pixels.total) / float(atlasPixelCount) * 100.0f,
+		ProcessLevelMesh.TimeMS(),
+		indexBufferUsed / 1000,
+		indexBufferUsed * 100 / indexBufferTotal);
 
 	return out;
 }
@@ -263,6 +283,8 @@ void DoomLevelMesh::BeginFrame(FLevelLocals& doomMap)
 	LastFrameStats = CurFrameStats;
 	CurFrameStats = Stats();
 
+	ProcessLevelMesh.ResetAndClock();
+
 	// HWWall and HWFlat still looks at r_viewpoint when doing calculations,
 	// but we aren't rendering a specific viewpoint when this function gets called
 	int oldextralight = r_viewpoint.extralight;
@@ -313,6 +335,8 @@ void DoomLevelMesh::BeginFrame(FLevelLocals& doomMap)
 
 	r_viewpoint.extralight = oldextralight;
 	r_viewpoint.camera = oldcamera;
+
+	ProcessLevelMesh.Unclock();
 }
 
 void DoomLevelMesh::UploadDynLights(FLevelLocals& doomMap)
@@ -2041,7 +2065,7 @@ void DoomLevelMesh::SaveLightmapLump(FLevelLocals& doomMap)
 	{
 		LightmapTile* tile = &Lightmap.Tiles[i];
 
-		if (tile->AtlasLocation.ArrayIndex == -1)
+		if (tile->AtlasLocation.ArrayIndex == -1 || tile->AtlasLocation.ArrayIndex >= Lightmap.TextureCount)
 			continue;
 
 		lumpFile.Write32(tile->Binding.Type);
@@ -2073,7 +2097,7 @@ void DoomLevelMesh::SaveLightmapLump(FLevelLocals& doomMap)
 	{
 		LightmapTile* tile = &Lightmap.Tiles[i];
 
-		if (tile->AtlasLocation.ArrayIndex == -1)
+		if (tile->AtlasLocation.ArrayIndex == -1 || tile->AtlasLocation.ArrayIndex >= Lightmap.TextureCount)
 			continue;
 
 		const uint16_t* pixels = Lightmap.TextureData.Data() + tile->AtlasLocation.ArrayIndex * Lightmap.TextureSize * Lightmap.TextureSize * 4;
