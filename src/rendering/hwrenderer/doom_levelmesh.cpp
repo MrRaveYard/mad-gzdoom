@@ -278,6 +278,8 @@ void DoomLevelMesh::SetLimits(FLevelLocals& doomMap)
 	Reset(limits);
 }
 
+CVAR(Bool, lm_cpu_levelmesh_update, false, CVAR_NOSAVE);
+
 void DoomLevelMesh::BeginFrame(FLevelLocals& doomMap)
 {
 	LastFrameStats = CurFrameStats;
@@ -331,7 +333,11 @@ void DoomLevelMesh::BeginFrame(FLevelLocals& doomMap)
 	UpdateWallPortals();
 	UploadDynLights(doomMap);
 
-	Collision->Update();
+
+	if (lm_cpu_levelmesh_update || level.maptime < 5)
+	{
+		Collision->Update();
+	}
 
 	r_viewpoint.extralight = oldextralight;
 	r_viewpoint.camera = oldcamera;
