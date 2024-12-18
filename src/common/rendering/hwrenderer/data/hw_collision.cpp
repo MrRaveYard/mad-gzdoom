@@ -23,6 +23,7 @@
 #include "hw_collision.h"
 #include "hw_levelmesh.h"
 #include "v_video.h"
+#include "printf.h"
 #include <algorithm>
 #include <functional>
 #include <cfloat>
@@ -85,18 +86,21 @@ void CPUAccelStruct::FindFirstHit(const RayBBox& ray, int a, TraceHit* hit)
 	}
 }
 
+extern cycle_t DynamicBLASTime;
+
 void CPUAccelStruct::Update()
 {
-	if (Mesh->UploadRanges.Index.Size() == 0)
+	if (Mesh->UploadRanges.Index.GetRanges().Size() == 0)
 		return;
 
+	DynamicBLASTime.ResetAndClock();
 	InstanceCount = (Mesh->Mesh.IndexCount + IndexesPerBLAS - 1) / IndexesPerBLAS;
 
-	bool needsUpdate[32] = {};
-	for (const MeshBufferRange& range : Mesh->UploadRanges.Index)
+	std::vector<bool> needsUpdate(InstanceCount);
+	for (const MeshBufferRange& range : Mesh->UploadRanges.Index.GetRanges())
 	{
 		int start = range.Start / IndexesPerBLAS;
-		int end = (range.End + IndexesPerBLAS - 1) / IndexesPerBLAS;
+		int end = range.End / IndexesPerBLAS;
 		for (int i = start; i < end; i++)
 		{
 			needsUpdate[i] = true;
@@ -112,6 +116,7 @@ void CPUAccelStruct::Update()
 			DynamicBLAS[instance] = CreateBLAS(indexStart, indexEnd - indexStart);
 		}
 	}
+	DynamicBLASTime.Unclock();
 
 	CreateTLAS();
 	Upload();
@@ -153,7 +158,7 @@ void CPUAccelStruct::Upload()
 	// Copy the BLAS nodes to the mesh node list and remember their locations
 	int offset = TLAS.Nodes.size();
 	int instance = 0;
-	int blasOffsets[32] = {};
+	std::vector<int> blasOffsets(DynamicBLAS.size());
 	for (auto& blas : DynamicBLAS)
 	{
 		if (blas)
@@ -209,7 +214,7 @@ void CPUAccelStruct::Upload()
 	}
 
 	Mesh->UploadRanges.Node.Clear();
-	Mesh->UploadRanges.Node.Push({ 0, (int)count });
+	Mesh->UploadRanges.Node.Add(0, (int)count);
 }
 
 void CPUAccelStruct::CreateTLAS()
@@ -220,8 +225,16 @@ void CPUAccelStruct::CreateTLAS()
 	Scratch.centroids.reserve(DynamicBLAS.size());
 	for (int i = 0; i < InstanceCount; i++)
 	{
-		Scratch.leafs.push_back(i);
-		Scratch.centroids.push_back(FVector4(DynamicBLAS[i]->GetBBox().Center, 1.0f));
+		if (DynamicBLAS[i])
+		{
+			Scratch.leafs.push_back(i);
+			Scratch.centroids.push_back(FVector4(DynamicBLAS[i]->GetBBox().Center, 1.0f));
+		}
+		else
+		{
+			Scratch.leafs.push_back(0);
+			Scratch.centroids.push_back(FVector4(-1000000.0f, -1000000.0f, -1000000.0f, 1.0f));
+		}
 	}
 
 	size_t neededbuffersize = InstanceCount * 2;
@@ -348,6 +361,21 @@ int CPUAccelStruct::Subdivide(int* instances, int numInstances, const FVector4* 
 	return (int)TLAS.Nodes.size() - 1;
 }
 
+void CPUAccelStruct::PrintStats()
+{
+	for (size_t i = 0; i < DynamicBLAS.size(); i++)
+	{
+		if (DynamicBLAS[i])
+		{
+			Printf("#%d avg=%2.3f balanced=%2.3f nodes=%d buildtime=%2.3f ms\n", (int)i, (double)DynamicBLAS[i]->GetAverageDepth(), (double)DynamicBLAS[i]->GetBalancedDepth(), (int)DynamicBLAS[i]->GetNodes().size(), DynamicBLAS[i]->GetBuildTimeMS());
+		}
+		else
+		{
+			Printf("#%d unused\n", (int)i);
+		}
+	}
+}
+
 /////////////////////////////////////////////////////////////////////////////
 
 CPUBottomLevelAccelStruct::CPUBottomLevelAccelStruct(const FFlatVertex *vertices, int num_vertices, const unsigned int *elements, int num_elements, AccelStructScratchBuffer& scratch)
@@ -356,6 +384,9 @@ CPUBottomLevelAccelStruct::CPUBottomLevelAccelStruct(const FFlatVertex *vertices
 	int num_triangles = num_elements / 3;
 	if (num_triangles <= 0)
 		return;
+
+	cycle_t timer;
+	timer.ResetAndClock();
 
 	scratch.leafs.clear();
 	scratch.leafs.reserve(num_triangles);
@@ -381,7 +412,10 @@ CPUBottomLevelAccelStruct::CPUBottomLevelAccelStruct(const FFlatVertex *vertices
 	if (scratch.workbuffer.size() < neededbuffersize)
 		scratch.workbuffer.resize(neededbuffersize);
 
-	root = Subdivide(&scratch.leafs[0], (int)scratch.leafs.size(), scratch.centroids.data(), scratch.workbuffer.data());
+	root = Subdivide(scratch.leafs.data(), (int)scratch.leafs.size(), scratch.centroids.data(), scratch.workbuffer.data());
+
+	timer.Unclock();
+	buildtime = timer.TimeMS();
 }
 
 TraceHit CPUBottomLevelAccelStruct::FindFirstHit(const FVector3 &ray_start, const FVector3 &ray_end)
