@@ -99,6 +99,7 @@ static FRandom pr_skullpop ("SkullPop");
 
 // [SP] Allows respawn in single player
 CVAR(Bool, sv_singleplayerrespawn, false, CVAR_SERVERINFO | CVAR_CHEAT)
+CVAR(Float, snd_footstepvolume, 1.f, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 
 // Variables for prediction
 CVAR(Bool, cl_predict_specials, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
@@ -143,6 +144,8 @@ CUSTOM_CVAR(Float, fov, 90.f, CVAR_ARCHIVE | CVAR_USERINFO | CVAR_NOINITCALL)
 static DVector3 LastPredictedPosition;
 static int LastPredictedPortalGroup;
 static int LastPredictedTic;
+
+static TArray<FRandom> PredictionRNG;
 
 static player_t PredictionPlayerBackup;
 static AActor *PredictionActor;
@@ -359,6 +362,7 @@ void player_t::CopyFrom(player_t &p, bool copyPSP)
 	MUSINFOactor = p.MUSINFOactor;
 	MUSINFOtics = p.MUSINFOtics;
 	SoundClass = p.SoundClass;
+	LastSafePos = p.LastSafePos;
 	angleOffsetTargets = p.angleOffsetTargets;
 	if (copyPSP)
 	{
@@ -1205,15 +1209,6 @@ DEFINE_ACTION_FUNCTION(APlayerPawn, CheckMusicChange)
 
 void P_CheckEnvironment(player_t *player)
 {
-	P_PlayerOnSpecial3DFloor(player);
-	P_PlayerInSpecialSector(player);
-
-	if (!player->mo->isAbove(player->mo->Sector->floorplane.ZatPoint(player->mo)) ||
-		player->mo->waterlevel)
-	{
-		// Player must be touching the floor
-		P_PlayerOnSpecialFlat(player, P_GetThingFloorType(player->mo));
-	}
 	if (player->mo->Vel.Z <= -player->mo->FloatVar(NAME_FallingScreamMinSpeed) &&
 		player->mo->Vel.Z >= -player->mo->FloatVar(NAME_FallingScreamMaxSpeed) && player->mo->alternative == nullptr &&
 		player->mo->waterlevel == 0)
@@ -1296,6 +1291,13 @@ void P_PlayerThink (player_t *player)
 	if (player->SubtitleCounter > 0)
 	{
 		player->SubtitleCounter--;
+	}
+
+	if (player->playerstate == PST_LIVE
+		&& player->mo->Z() <= player->mo->floorz
+		&& !player->mo->Sector->IsDangerous(player->mo->Pos(), player->mo->Height))
+	{
+		player->LastSafePos = player->mo->Pos();
 	}
 
 	// Bots do not think in freeze mode.
@@ -1471,6 +1473,8 @@ void P_PredictPlayer (player_t *player)
 		return;
 	}
 
+	FRandom::SaveRNGState(PredictionRNG);
+
 	// Save original values for restoration later
 	PredictionPlayerBackup.CopyFrom(*player, false);
 
@@ -1609,6 +1613,8 @@ void P_UnPredictPlayer ()
 		{
 			// Q: Can this happen? If yes, can we continue?
 		}
+
+		FRandom::RestoreRNGState(PredictionRNG);
 
 		AActor *savedcamera = player->camera;
 
@@ -1783,7 +1789,9 @@ void player_t::Serialize(FSerializer &arc)
 		("onground", onground)
 		("musinfoactor", MUSINFOactor)
 		("musinfotics", MUSINFOtics)
-		("soundclass", SoundClass);
+		("soundclass", SoundClass)
+		("angleoffsettargets", angleOffsetTargets)
+		("lastsafepos", LastSafePos);
 
 	if (arc.isWriting ())
 	{
