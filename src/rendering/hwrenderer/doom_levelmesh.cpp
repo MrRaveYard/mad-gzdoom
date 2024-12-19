@@ -284,7 +284,7 @@ void DoomLevelMesh::SetLimits(FLevelLocals& doomMap)
 	Reset(limits);
 }
 
-CVAR(Bool, lm_cpu_levelmesh_update, false, CVAR_NOSAVE);
+CVAR(Bool, lm_cpu_levelmesh_update, true, CVAR_NOSAVE);
 
 void DoomLevelMesh::BeginFrame(FLevelLocals& doomMap)
 {

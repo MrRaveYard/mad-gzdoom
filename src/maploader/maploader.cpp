@@ -94,7 +94,7 @@ enum
 };
 
 CVAR (Bool, genblockmap, false, CVAR_SERVERINFO|CVAR_GLOBALCONFIG);
-CVAR (Bool, gennodes, false, CVAR_SERVERINFO|CVAR_GLOBALCONFIG);
+CVAR (Bool, gennodes, true, CVAR_SERVERINFO|CVAR_GLOBALCONFIG);
 CVAR (Bool, genlightmaps, false, CVAR_GLOBALCONFIG);
 CVAR (Bool, ignorelightmaplump, false, CVAR_GLOBALCONFIG);
 
