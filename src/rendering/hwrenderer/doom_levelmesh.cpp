@@ -932,6 +932,9 @@ void DoomLevelMesh::SetFlatLights(FLevelLocals& doomMap, unsigned int sectorInde
 	}
 }
 
+
+CVAR(Bool, lm_polyobject_dynamic, false, CVAR_NOSAVE);
+
 void DoomLevelMesh::CreateWallSurface(side_t* side, HWWallDispatcher& disp, MeshBuilder& state, TArray<HWWall>& list, LevelMeshDrawType drawType, bool translucent, unsigned int sideIndex, const LightListAllocInfo& lightlist)
 {
 	for (HWWall& wallpart : list)
@@ -1076,7 +1079,7 @@ void DoomLevelMesh::CreateWallSurface(side_t* side, HWWallDispatcher& disp, Mesh
 		sinfo.Surface->LightList.Pos = lightlist.Start;
 		sinfo.Surface->LightList.Count = lightlist.Count;
 
-		if (side->Flags & WALLF_POLYOBJ) // Polyobjects gets a new tile every frame
+		if ((side->Flags & WALLF_POLYOBJ) && lm_polyobject_dynamic) // Polyobjects gets a new tile every frame
 		{
 			LightmapTileBinding binding;
 			binding.Type = info.Type;

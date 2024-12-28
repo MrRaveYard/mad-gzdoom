@@ -41,7 +41,7 @@ const char *GetVersionString();
 
 /** Lots of different version numbers **/
 
-#define VERSIONSTR "mad-4.11pre vkdoom-1.0pre"
+#define VERSIONSTR "mad-4.14ish vkdoom-1.0pre"
 
 // The version as seen in the Windows resource
 #define RC_FILEVERSION 1,0,9999,0
